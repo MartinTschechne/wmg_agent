@@ -19,6 +19,7 @@ WMG_HIDDEN_SIZE = spec.val("WMG_HIDDEN_SIZE")
 AC_HIDDEN_LAYER_SIZE = spec.val("AC_HIDDEN_LAYER_SIZE")
 WMG_MAX_OBS = spec.val("WMG_MAX_OBS")
 WMG_MAX_MEMOS = spec.val("WMG_MAX_MEMOS")
+WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
 
 # Set WMG_MAX_MEMOS > 0 for attention over Memos, stored in a StateMatrix.
 # Set WMG_MAX_OBS > 0 for attention over past observations, stored in a StateMatrix.
@@ -62,7 +63,7 @@ class WMG_Network(nn.Module):
             self.state_vector_len = WMG_MEMO_SIZE
         self.prepare_vector_embedding_layers(observation_space)
         self.prepare_age_encodings()
-        self.tfm = Transformer(WMG_NUM_ATTENTION_HEADS, WMG_ATTENTION_HEAD_SIZE, WMG_NUM_LAYERS, WMG_HIDDEN_SIZE)
+        self.tfm = Transformer(WMG_TRANSFORMER_TYPE, WMG_NUM_ATTENTION_HEADS, WMG_ATTENTION_HEAD_SIZE, WMG_NUM_LAYERS, WMG_HIDDEN_SIZE)
         if V2:
             self.actor_critic_layers = SharedActorCriticLayers(self.tfm_vec_size, 2, AC_HIDDEN_LAYER_SIZE, action_space)
         else:

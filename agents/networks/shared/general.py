@@ -41,6 +41,31 @@ class ResidualLayer(nn.Module):
         output += prev_input
         return output
 
+class LayerNormResidual(nn.Module):
+    def __init__(self, input_size, output_size, size):
+        super(LayerNormResidual, self).__init__()
+        self.linear_layer = LinearLayer(input_size, output_size)
+        self.layer_norm = LayerNorm(output_size)
+
+    def forward(self, x, prev_input):
+        output = self.linear_layer(x)
+        output = self.layer_norm(output)
+        output += prev_input
+        return output
+
+class Normalize(nn.Module):
+    def __init__(self,head_size,variance_epsilon=1e-12):
+        super(Normalize, self).__init__()
+        self.gain = nn.Parameter(torch.ones([1,head_size,1,1]))
+        self.bias = nn.Parameter(torch.zeros([1,head_size,1,1]))
+        self.variance_epsilon = variance_epsilon
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.gain * x + self.bias
+
 
 class SeparateActorCriticLayers(nn.Module):
     def __init__(self, input_size, num_layers, hidden_layer_size, action_space_size):
