@@ -4,18 +4,16 @@
 ###  CONTROLS  (non-tunable)  ###
 
 # general
-TYPE_OF_RUN = test_episodes  # train, test, test_episodes, render
-NUM_EPISODES_TO_TEST = 1000
-MIN_FINAL_REWARD_FOR_SUCCESS = 1.0
-LOAD_MODEL_FROM = models/new_wmg_flat_babyai.pth
-SAVE_MODELS_TO = None
+TYPE_OF_RUN = train  # train, test, test_episodes, render
+LOAD_MODEL_FROM = None
+SAVE_MODELS_TO = models/new_wmg_flat_babyai.pth
 
 # worker.py
 ENV = BabyAI_Env
-ENV_RANDOM_SEED = 1
+ENV_RANDOM_SEED = randint  # Use an integer for deterministic training.
 AGENT_RANDOM_SEED = 1
-REPORTING_INTERVAL = 1
-TOTAL_STEPS = 1
+REPORTING_INTERVAL = 10
+TOTAL_STEPS = 160
 ANNEAL_LR = False
 
 # A3cAgent
@@ -28,7 +26,7 @@ V2 = False
 BABYAI_ENV_LEVEL = BabyAI-GoToLocal-v0
 USE_SUCCESS_RATE = True
 SUCCESS_RATE_THRESHOLD = 0.99
-HELDOUT_TESTING = False
+HELDOUT_TESTING = True
 NUM_TEST_EPISODES = 10000
 OBS_ENCODER = Flat
 BINARY_REWARD = True

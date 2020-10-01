@@ -4,16 +4,16 @@
 ###  CONTROLS  (non-tunable)  ###
 
 # general
-TYPE_OF_RUN = test  # train, test, test_episodes, render
-LOAD_MODEL_FROM = models/new_wmg_pathfinding.pth
-SAVE_MODELS_TO = None
+TYPE_OF_RUN = train  # train, test, test_episodes, render
+LOAD_MODEL_FROM = None
+SAVE_MODELS_TO = models/new_wmg_pathfinding.pth
 
 # worker.py
 ENV = Pathfinding_Env
-ENV_RANDOM_SEED = 1
+ENV_RANDOM_SEED = randint  # Use an integer for deterministic training.
 AGENT_RANDOM_SEED = 1
-REPORTING_INTERVAL = 1200
-TOTAL_STEPS = 12000
+REPORTING_INTERVAL = 10
+TOTAL_STEPS = 200
 ANNEAL_LR = False
 
 # A3cAgent
