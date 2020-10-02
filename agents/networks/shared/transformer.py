@@ -63,7 +63,6 @@ class SelfAttentionLayer(nn.Module):
         output = self.concatenate_heads(weighted_values)  # [B, C, V]
         return output
 
-
 class TransformerLayer(nn.Module):
     def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
         super(TransformerLayer, self).__init__()
@@ -193,6 +192,30 @@ class NAP(nn.Module):
         output = self.feedforward_layer_norm_residual(output, att_output)
         return output
 
+class MTE(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(MTE, self).__init__()
+        self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
+        self.attention_layer_norm = LayerNorm(vec_size)
+        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size, vec_size)
+
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+
+    def forward(self, input):
+        # Attention phase.
+        att_output = self.attention(input)
+        att_output = self.attention_layer_norm(att_output)
+        att_output = F.gelu(att_output)
+        att_output = self.attention_layer_norm_residual(att_output, input)
+
+        # Feedforward phase.
+        output = self.feedforward(att_output)
+        output = self.feedforward_layer_norm(output)
+        output = F.gelu(output)
+        output = self.feedforward_layer_norm_residual(output, att_output)
+        return output
 
 class Transformer(nn.Module):
     def __init__(self, transformer_type, num_attention_heads, attention_head_size, num_layers, hidden_layer_size):
@@ -206,6 +229,8 @@ class Transformer(nn.Module):
             TransformerLayerType = NAP
         elif transformer_type == "BERT":
             TransformerLayerType = BERT
+        elif transformer_type == "MTE":
+            TransformerLayerType = MTE
         else:
             TransformerLayerType = TransformerLayer
 
