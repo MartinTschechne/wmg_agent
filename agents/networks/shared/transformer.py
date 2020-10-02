@@ -295,6 +295,28 @@ class NON(nn.Module):
         output = self.feedforward_layer_norm_residual(output, att_output)
         return output
 
+class SUM(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(SUM, self).__init__()
+        self.sum_layer_norm = LayerNorm(vec_size)
+
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+
+    def forward(self, input):
+        # Sum phase.
+        sum_output = input.sum(-1,keepdim=True)
+        sum_output = self.sum_layer_norm(sum_output)
+        sum_output += input
+
+        # Feedforward phase.
+        output = self.feedforward(sum_output)
+        output = self.feedforward_layer_norm(output)
+        output = F.gelu(output)
+        output = self.feedforward_layer_norm_residual(output, sum_output)
+        return output
+
 class Transformer(nn.Module):
     def __init__(self, transformer_type, num_attention_heads, attention_head_size, num_layers, hidden_layer_size):
         super(Transformer, self).__init__()
@@ -311,6 +333,8 @@ class Transformer(nn.Module):
             TransformerLayerType = MTE
         elif transformer_type == "NON":
             TransformerLayerType = NON
+        elif transformer_type == "SUM":
+            TransformerLayerType = SUM
         else:
             TransformerLayerType = TransformerLayer
 
