@@ -88,6 +88,30 @@ class TransformerLayer(nn.Module):
         output = self.feedforward_layer_norm(output)
         return output
 
+class BERT(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(BERT, self).__init__()
+        self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
+        self.attention_residual = ResidualLayer(vec_size, vec_size)
+        self.attention_layer_norm = LayerNorm(vec_size)
+
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
+        self.feedforward_layer_norm = LayerNorm(vec_size)
+
+    def forward(self, input):
+        # Attention phase.
+        att_output = self.attention(input)
+        att_output = self.attention_residual(att_output, input)
+        att_output = self.attention_layer_norm(att_output)
+
+        # Feedforward phase.
+        output = self.feedforward(att_output)
+        output = F.gelu(output)
+        output = self.feedforward_residual(output, att_output)
+        output = self.feedforward_layer_norm(output)
+        return output
+
 class NormalizedAttentionLayer(nn.Module):
     def __init__(self, vec_size, num_attention_heads, attention_head_size):
         super(NormalizedAttentionLayer, self).__init__()
@@ -180,6 +204,8 @@ class Transformer(nn.Module):
             TransformerLayerType = TransformerLayer
         elif transformer_type == "NAP":
             TransformerLayerType = NAP
+        elif transformer_type == "BERT":
+            TransformerLayerType = BERT
         else:
             TransformerLayerType = TransformerLayer
 
