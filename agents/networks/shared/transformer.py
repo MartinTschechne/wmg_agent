@@ -317,6 +317,28 @@ class SUM(nn.Module):
         output = self.feedforward_layer_norm_residual(output, sum_output)
         return output
 
+class MAX(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(MAX, self).__init__()
+        self.max_layer_norm = LayerNorm(vec_size)
+
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+
+    def forward(self, input):
+        # Max phase.
+        max_output = input.max(-1,keepdim=True)[0] # keep only max values
+        max_output = self.max_layer_norm(max_output)
+        max_output += input
+
+        # Feedforward phase.
+        output = self.feedforward(max_output)
+        output = self.feedforward_layer_norm(output)
+        output = F.gelu(output)
+        output = self.feedforward_layer_norm_residual(output, max_output)
+        return output
+
 class Transformer(nn.Module):
     def __init__(self, transformer_type, num_attention_heads, attention_head_size, num_layers, hidden_layer_size):
         super(Transformer, self).__init__()
@@ -335,8 +357,11 @@ class Transformer(nn.Module):
             TransformerLayerType = NON
         elif transformer_type == "SUM":
             TransformerLayerType = SUM
+        elif transformer_type == "MAX":
+            TransformerLayerType = MAX
         else:
-            TransformerLayerType = TransformerLayer
+            print("Transformer Layer Type '{}' not available.".format(transformer_type))
+            exit(-1)
 
         for i in range(num_layers):
             self.layers.append(TransformerLayerType(vec_size, num_attention_heads, attention_head_size, hidden_layer_size))
