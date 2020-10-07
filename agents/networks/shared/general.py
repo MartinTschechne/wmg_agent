@@ -42,7 +42,7 @@ class ResidualLayer(nn.Module):
         return output
 
 class LayerNormResidual(nn.Module):
-    def __init__(self, input_size, output_size, size):
+    def __init__(self, input_size, output_size):
         super(LayerNormResidual, self).__init__()
         self.linear_layer = LinearLayer(input_size, output_size)
         self.layer_norm = LayerNorm(output_size)
@@ -54,10 +54,10 @@ class LayerNormResidual(nn.Module):
         return output
 
 class Normalize(nn.Module):
-    def __init__(self,head_size,variance_epsilon=1e-12):
+    def __init__(self,num_heads,variance_epsilon=1e-12):
         super(Normalize, self).__init__()
-        self.gain = nn.Parameter(torch.ones([1,head_size,1,1]))
-        self.bias = nn.Parameter(torch.zeros([1,head_size,1,1]))
+        self.gain = nn.Parameter(torch.ones([1,num_heads,1,1]))
+        self.bias = nn.Parameter(torch.zeros([1,num_heads,1,1]))
         self.variance_epsilon = variance_epsilon
 
     def forward(self, x):

@@ -172,11 +172,11 @@ class NAP(nn.Module):
         super(NAP, self).__init__()
         self.attention = NormalizedAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_layer_norm = LayerNorm(vec_size)
-        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size, vec_size)
+        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Attention phase.
@@ -197,11 +197,11 @@ class MTE(nn.Module):
         super(MTE, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_layer_norm = LayerNorm(vec_size)
-        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size, vec_size)
+        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Attention phase.
@@ -247,6 +247,9 @@ class NoOnlineLogitNormalizationLayer(nn.Module):
         # S = head size
         # V = vec_size = H * S
 
+        # sequence length
+        N = tens.size()[-2]
+
         # Project the input to get the QKV vectors.
         queries = self.query(tens)  # [B, C, V]
         keys = self.key(tens)       # [B, C, V]
@@ -266,7 +269,7 @@ class NoOnlineLogitNormalizationLayer(nn.Module):
         weighted_values = torch.matmul(attention_scores, split_values)  # [B, H, C, S]
 
         # Scale weighted value vectors by root of sequence length.
-        weighted_values /= math.sqrt(weighted_values.size()[-2]) # [B, H, C, S]
+        weighted_values /= math.sqrt(N) # [B, H, C, S]
 
         # Concatenate the heads for output.
         output = self.concatenate_heads(weighted_values)  # [B, C, V]
@@ -276,11 +279,11 @@ class NON(nn.Module):
     def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
         super(NON, self).__init__()
         self.attention = NoOnlineLogitNormalizationLayer(vec_size, num_attention_heads, attention_head_size)
-        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size, vec_size)
+        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Attention phase.
@@ -302,11 +305,11 @@ class SUM(nn.Module):
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Sum phase.
-        sum_output = input.sum(-1,keepdim=True)
+        sum_output = input.sum(-2,keepdim=True)
         sum_output = self.sum_layer_norm(sum_output)
         sum_output += input
 
@@ -324,11 +327,11 @@ class MAX(nn.Module):
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size, hidden_layer_size)
+        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Max phase.
-        max_output = input.max(-1,keepdim=True)[0] # keep only max values
+        max_output = input.max(-2,keepdim=True)[0] # keep only max values
         max_output = self.max_layer_norm(max_output)
         max_output += input
 
