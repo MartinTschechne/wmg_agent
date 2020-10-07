@@ -116,4 +116,4 @@ results/
 *.sh
 
 # exclude new models
-models/new_*.pth
+models/*.pth
