@@ -309,9 +309,9 @@ class SUM(nn.Module):
 
     def forward(self, input):
         # Sum phase.
-        sum_output = input.sum(-2,keepdim=True)
-        sum_output = self.sum_layer_norm(sum_output)
-        sum_output += input
+        sum_input = input.sum(-2,keepdim=True)
+        sum_norm = self.sum_layer_norm(sum_input)
+        sum_output = sum_norm + input
 
         # Feedforward phase.
         output = self.feedforward(sum_output)
@@ -331,9 +331,9 @@ class MAX(nn.Module):
 
     def forward(self, input):
         # Max phase.
-        max_output = input.max(-2,keepdim=True)[0] # keep only max values
-        max_output = self.max_layer_norm(max_output)
-        max_output += input
+        max_input = input.max(-2,keepdim=True)[0] # keep only max values
+        max_norm = self.max_layer_norm(max_input)
+        max_output = max_norm + input
 
         # Feedforward phase.
         output = self.feedforward(max_output)
