@@ -122,7 +122,6 @@ class NormalizedAttentionLayer(nn.Module):
         self.key = LinearLayer(vec_size, vec_size)
         self.value = LinearLayer(vec_size, vec_size)
 
-        self.dot_product_scale = 1.0 / math.sqrt(attention_head_size)
         self.normalize = Normalize(num_attention_heads)
 
     def split_heads_apart(self, x):
@@ -155,7 +154,6 @@ class NormalizedAttentionLayer(nn.Module):
         # Take the dot product between each query and key to get the raw attention scores.
         transposed_keys = split_keys.transpose(-1, -2)   # [B, H, S, C]
         attention_scores = torch.matmul(split_queries, transposed_keys)  # [B, H, C, C]
-        attention_scores = attention_scores * self.dot_product_scale     # [B, H, C, C]
 
         # Normliaze attention scores.
         norm_attention = self.normalize(attention_scores)  # [B, H, C, C]
