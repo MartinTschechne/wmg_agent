@@ -36,6 +36,12 @@ class A3cAgent(object):
             self.network =  WMG_Network(observation_space_size, action_space_size)
         else:
             assert False  # The specified agent network was not found.
+
+        # Check device and transfer model to device
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("Device: {}".format(self.device))
+        self.network.to(self.device)
+
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=LEARNING_RATE,
                                           weight_decay=WEIGHT_DECAY, eps=ADAM_EPS)
         if ANNEAL_LR:
@@ -73,7 +79,7 @@ class A3cAgent(object):
         self.logp_tensor = F.log_softmax(logits, dim=-1)
         action_probs = torch.exp(self.logp_tensor)
         self.action_tensor = action_probs.multinomial(num_samples=1).data[0]
-        self.last_action = self.action_tensor.numpy()[0]
+        self.last_action = self.action_tensor.cpu().numpy()[0]
         return self.last_action
 
     def adapt(self, reward, done, next_observation):
@@ -97,7 +103,8 @@ class A3cAgent(object):
         ''' Peek at the state value of the next observation, for TD calculation. '''
         _, next_value, _ = self.network(next_observation, self.net_state)
         # Train.
-        self.train(next_value.squeeze().data.numpy())
+        # self.train(next_value.squeeze().data.cpu().numpy())
+        self.train(next_value.squeeze().data)
         # Stop the gradients from flowing back into this window that we just trained on.
         self.net_state = self.network.detach_from_history(self.net_state)
         # Clear the experiment buffer.
@@ -117,10 +124,15 @@ class A3cAgent(object):
 
     def loss_function(self, next_value, values, logps, actions, rewards):
         td_target = next_value
-        np_values = values.view(-1).data.numpy()
+        # np_values = values.view(-1).data.cpu().numpy()
+        np_values = values.view(-1).data
         buffer_size = len(rewards)
         td_targets = np.zeros(buffer_size)
         advantages = np.zeros(buffer_size)
+        #
+        reward = torch.tensor(rewards).to(self.device)
+        td_targets = torch.tensor(td_targets).to(self.device)
+        advantages = torch.tensor(advantages).to(self.device)
 
         # Populate the td_target array (for value update) and the advantage array (for policy update).
         # Note that value errors should be backpropagated through the current value calculation for value updates,
@@ -132,15 +144,17 @@ class A3cAgent(object):
             advantages[i] = advantage
 
         chosen_action_log_probs = logps.gather(1, actions.view(-1, 1))
-        advantages_tensor = torch.FloatTensor(advantages.copy())
-        policy_losses = chosen_action_log_probs.view(-1) * advantages_tensor
+        # advantages_tensor = torch.FloatTensor(advantages.copy()) # .to(self.device)
+        # policy_losses = chosen_action_log_probs.view(-1).to(self.device) * advantages_tensor
+        policy_losses = chosen_action_log_probs.view(-1) * advantages # advantages_tensor
         policy_loss = -policy_losses.sum()
 
-        td_targets_tensor = torch.FloatTensor(td_targets.copy())
+        # td_targets_tensor = torch.FloatTensor(td_targets.copy())
 
-        value_losses = td_targets_tensor - values[:, 0]
-        value_loss = value_losses.pow(2).sum()
+        # value_losses = td_targets_tensor.cpu() - values[:, 0].cpu()
+        value_losses = td_targets - values[:, 0]
+        value_loss = value_losses.pow(2).sum() # .to(self.device)
 
         entropy_losses = -logps * torch.exp(logps)
-        entropy_loss = entropy_losses.sum()
+        entropy_loss = entropy_losses.sum() # .to(self.device)
         return policy_loss + 0.5 * value_loss - ENTROPY_TERM_STRENGTH * entropy_loss

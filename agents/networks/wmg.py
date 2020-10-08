@@ -70,6 +70,7 @@ class WMG_Network(nn.Module):
             self.actor_critic_layers = SeparateActorCriticLayers(self.tfm_vec_size, 2, AC_HIDDEN_LAYER_SIZE, action_space)
         if WMG_MAX_MEMOS > 0:
             self.memo_creation_layer = LinearLayer(self.tfm_vec_size, WMG_MEMO_SIZE)
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def forward(self, x, old_matrix):
         embedded_vec_list = []
@@ -78,25 +79,26 @@ class WMG_Network(nn.Module):
         if self.factored_observations:
             if V2:
                 for entity in x.entities:
-                    embedded_vec_list.append(self.embedding_layers[entity.type](torch.tensor(entity.data)))
+                    embedded_vec_list.append(self.embedding_layers[entity.type](torch.tensor(entity.data).to(self.device)))
             else:
-                embedded_vec_list.append(self.core_embedding_layer(torch.tensor(np.float32(x[0]))))
+                embedded_vec_list.append(self.core_embedding_layer(torch.tensor(np.float32(x[0])).to(self.device)))
                 for factor_vec in x[1:]:
-                    embedded_vec_list.append(self.factor_embedding_layer(torch.tensor(np.float32(factor_vec))))
+                    embedded_vec_list.append(self.factor_embedding_layer(torch.tensor(np.float32(factor_vec)).to(self.device)))
         else:
-            x_tens = torch.tensor(np.float32(x))
+            x_tens = torch.tensor(np.float32(x)).to(self.device)
             embedded_vec_list.append(self.core_embedding_layer(x_tens))
 
         # Embed the state vectors.
         for i in range(old_matrix.num_vectors):
             if V2:
-                embedded_vector = self.add_age_embedding(self.state_embedding_layer(old_matrix.get_vector(i)), i)
+                embedded_vector = self.add_age_embedding(self.state_embedding_layer(old_matrix.get_vector(i).to(self.device)), i)
             else:
-                embedded_vector = self.state_embedding_layer(torch.cat((old_matrix.get_vector(i), self.age[i])))
+                embedded_vector = self.state_embedding_layer(torch.cat((old_matrix.get_vector(i).to(self.device), self.age[i].to(self.device))))
             embedded_vec_list.append(embedded_vector)
 
         # Apply the Transformer.
         tfm_input = torch.cat(embedded_vec_list).view(1, len(embedded_vec_list), self.tfm_vec_size)
+        #tfm_input = tfm_input.to(self.device)
         tfm_output = self.tfm(tfm_input)[:,0,:]  # Take only the Core column's output vector.
 
         # Update the state.
@@ -163,7 +165,7 @@ class WMG_Network(nn.Module):
     def add_age_embedding(self, vector_in, age):
         age_vec = self.age[min(age, self.max_age_index)]
         age_vec[-1] = age / S  # Include the normalized age scalar to convey order.
-        age_embedding = self.age_embedding_layer(torch.tensor(age_vec))
+        age_embedding = self.age_embedding_layer(torch.tensor(age_vec).to(self.device))
         return vector_in + age_embedding
 
     def init_state(self):
