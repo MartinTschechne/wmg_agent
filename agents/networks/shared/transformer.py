@@ -87,6 +87,63 @@ class TransformerLayer(nn.Module):
         output = self.feedforward_layer_norm(output)
         return output
 
+class BaseLayerA(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(BaseLayerA, self).__init__()
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
+        self.feedforward_layer_norm = LayerNorm(vec_size)
+
+    def forward(self, input):
+        # Feedforward phase.
+        output = self.feedforward(input)
+        output = F.gelu(output)
+        output = self.feedforward_residual(output, input)
+        output = self.feedforward_layer_norm(output)
+        return output
+
+class BaseLayerB(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(BaseLayerB, self).__init__()
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
+        self.feedforward_residual_layer_norm = LayerNormResidual(hidden_layer_size, vec_size)
+
+    def forward(self, input):
+        # Feedforward phase.
+        output = self.feedforward(input)
+        output = self.feedforward_layer_norm(output)
+        output = F.gelu(output)
+        output = self.feedforward_residual_layer_norm(output, input)
+        return output
+
+class AltTransformerLayer(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+        super(AltTransformerLayer, self).__init__()
+        self.attention = NormalizedAttentionLayer(vec_size, num_attention_heads, attention_head_size)
+        self.attention_inner_layer_norm = LayerNorm(vec_size)
+        self.attention_residual = ResidualLayer(vec_size, vec_size)
+        self.attention_outer_layer_norm = LayerNorm(vec_size)
+
+        self.feedforward = LinearLayer(vec_size, hidden_layer_size)
+        self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
+        self.feedforward_layer_norm = LayerNorm(vec_size)
+
+    def forward(self, input):
+        # Attention phase.
+        att_output = self.attention(input)
+        att_output = self.attention_inner_layer_norm(att_output)
+        att_output = F.gelu(att_output)
+        att_output = self.attention_residual(att_output,input)
+        att_output = self.attention_outer_layer_norm(att_output)
+
+        # Feedforward phase.
+        output = self.feedforward(att_output)
+        output = F.gelu(output)
+        output = self.feedforward_residual(output, att_output)
+        output = self.feedforward_layer_norm(output)
+        return output
+
 class BERT(nn.Module):
     def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
         super(BERT, self).__init__()
@@ -170,32 +227,33 @@ class NAP(nn.Module):
         super(NAP, self).__init__()
         self.attention = NormalizedAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_layer_norm = LayerNorm(vec_size)
-        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
+        self.attention_residual_layer_norm = LayerNormResidual(vec_size, vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
-        self.feedforward_layer_norm_residual = LayerNormResidual(hidden_layer_size, vec_size)
+        self.feedforward_residual_layer_norm = LayerNormResidual(hidden_layer_size, vec_size)
 
     def forward(self, input):
         # Attention phase.
         att_output = self.attention(input)
         att_output = self.attention_layer_norm(att_output)
         att_output = F.gelu(att_output)
-        att_output = self.attention_layer_norm_residual(att_output, input)
+        att_output = self.attention_residual_layer_norm(att_output, input)
 
         # Feedforward phase.
         output = self.feedforward(att_output)
         output = self.feedforward_layer_norm(output)
         output = F.gelu(output)
-        output = self.feedforward_layer_norm_residual(output, att_output)
+        output = self.feedforward_residual_layer_norm(output, att_output)
         return output
 
 class MTE(nn.Module):
     def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
         super(MTE, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
-        self.attention_layer_norm = LayerNorm(vec_size)
-        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
+        self.attention_inner_layer_norm = LayerNorm(vec_size)
+        self.attention_residual = ResidualLayer(vec_size, vec_size)
+        self.attention_outer_layer_norm = LayerNorm(vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
@@ -204,9 +262,10 @@ class MTE(nn.Module):
     def forward(self, input):
         # Attention phase.
         att_output = self.attention(input)
-        att_output = self.attention_layer_norm(att_output)
+        # att_output = self.attention_inner_layer_norm(att_output)
         att_output = F.gelu(att_output)
-        att_output = self.attention_layer_norm_residual(att_output, input)
+        att_output = self.attention_residual(att_output, input)
+        att_output = self.attention_outer_layer_norm(att_output)
 
         # Feedforward phase.
         output = self.feedforward(att_output)
@@ -360,6 +419,12 @@ class Transformer(nn.Module):
             TransformerLayerType = SUM
         elif transformer_type == "MAX":
             TransformerLayerType = MAX
+        elif transformer_type == "Alt":
+            TransformerLayerType = AltTransformerLayer
+        elif transformer_type == "BaseA":
+            TransformerLayerType = BaseLayerA
+        elif transformer_type == "BaseB":
+            TransformerLayerType = BaseLayerB
         else:
             print("Transformer Layer Type '{}' not available.".format(transformer_type))
             exit(-1)
