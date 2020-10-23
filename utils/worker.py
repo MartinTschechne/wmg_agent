@@ -3,6 +3,7 @@
 import os
 import time
 import datetime
+import json
 import pytz
 import platform
 import torch
@@ -20,20 +21,36 @@ TOTAL_STEPS = spec.val("TOTAL_STEPS")
 ANNEAL_LR = spec.val("ANNEAL_LR")
 if ANNEAL_LR:
     ANNEALING_START = spec.val("ANNEALING_START")
+WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
 
 from agents.a3c import A3cAgent
 
 
 class Worker(object):
-    def __init__(self):
+    def __init__(self, config_id=None):
         torch.manual_seed(AGENT_RANDOM_SEED)
+
+        # Open config_id to extract hyperparameters
+        self.config_id = config_id
+        if int(self.config_id) < 50:
+            with open('./specs/hyperparameter-combinations.json','r') as f:
+                configs = json.load(f)
+            self.config = configs[self.config_id]
+            print(f"Hyperparameters:\
+                \nLearning Rate: {self.config['learning_rate']}\
+                \nAttention Head Size: {self.config['attention_head_size']}\
+                \nNo. Attention Heads: {self.config['attention_heads']}")
+        else:
+            print("Config ID not available. Config ID must be in the interval [0,49].")
+            exit(-1)
+
         self.start_time = time.time()
         self.heldout_testing = False
         self.environment = self.create_environment(ENV_RANDOM_SEED)
-        self.agent = A3cAgent(self.observation_space, self.action_space)
+        self.agent = A3cAgent(self.observation_space, self.action_space, self.config)
         if self.heldout_testing:
             self.environment.test_environment = self.create_environment(ENV_RANDOM_SEED + 1000000)
-            self.environment.test_agent = A3cAgent(self.observation_space, self.action_space)
+            self.environment.test_agent = A3cAgent(self.observation_space, self.action_space, self.config)
             self.environment.test_agent.network = self.agent.network
         self.step_num = 0
         self.total_reward = 0.
@@ -67,7 +84,7 @@ class Worker(object):
             datetime.datetime.utcnow()).astimezone(pytz.timezone("PST8PDT")).strftime("%y-%m-%d_%H-%M-%S")
         code_dir = os.path.dirname(os.path.abspath(__file__))
         results_dir = os.path.join(os.path.dirname(code_dir), 'results')
-        self.output_filename = os.path.join(results_dir, 'out_{}_{}.txt'.format(server_name, datetime_string))
+        self.output_filename = os.path.join(results_dir, '{}_{}_{}.txt'.format(WMG_TRANSFORMER_TYPE, self.config_id, datetime_string))
         file = open(self.output_filename, 'w')
         file.close()
 
@@ -102,6 +119,14 @@ class Worker(object):
         self.create_results_output_file()
         self.init_episode()
         spec.output_to_file(self.output_filename)
+        self.output("Hyperparameters:\n\
+                    Learning Rate: {}\n\
+                    Attention Head Size: {}\n\
+                    No. Attentions Hedas: {}".format(
+                        self.config['learning_rate'],
+                        self.config['attention_head_size'],
+                        self.config['attention_heads']
+                    ))
         self.take_n_steps(TOTAL_STEPS, None, True)
         self.output("{:8.6f} overall reward per step".format(self.total_reward / self.step_num))
 

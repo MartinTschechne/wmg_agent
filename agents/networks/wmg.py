@@ -52,8 +52,15 @@ else:
 
 class WMG_Network(nn.Module):
     ''' Working Memory Graph '''
-    def __init__(self, observation_space, action_space):
+    def __init__(self, observation_space, action_space, config=None):
         super(WMG_Network, self).__init__()
+        # Special config input
+        if config:
+            WMG_ATTENTION_HEAD_SIZE = config['attention_head_size']
+            WMG_NUM_ATTENTION_HEADS = config['attention_heads']
+        print(f"WMG_ATTENTION_HEAD_SIZE: {WMG_ATTENTION_HEAD_SIZE}")
+        print(f"WMG_NUM_ATTENTION_HEADS: {WMG_NUM_ATTENTION_HEADS}")
+
         self.factored_observations = isinstance(observation_space, tuple) or isinstance(observation_space, Graph)
         self.tfm_vec_size = WMG_NUM_ATTENTION_HEADS * WMG_ATTENTION_HEAD_SIZE
         if WMG_MAX_OBS:

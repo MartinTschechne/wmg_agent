@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -27,20 +28,27 @@ torch.manual_seed(AGENT_RANDOM_SEED)
 
 class A3cAgent(object):
     ''' A single-worker version of Asynchronous Advantage Actor-Critic (Mnih et al., 2016)'''
-    def __init__(self, observation_space_size, action_space_size):
+    def __init__(self, observation_space_size, action_space_size, config=None):
+        self.config = config
         if AGENT_NET == "GRU_Network":
             from agents.networks.gru import GRU_Network
             self.network = GRU_Network(observation_space_size, action_space_size)
         elif AGENT_NET == "WMG_Network":
             from agents.networks.wmg import WMG_Network
-            self.network =  WMG_Network(observation_space_size, action_space_size)
+            self.network =  WMG_Network(observation_space_size, action_space_size, self.config)
         else:
             assert False  # The specified agent network was not found.
 
         # Check device and transfer model to device
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if self.device == "cpu":
+            torch.set_num_threads(os.cpu_count())
         print("Device: {}".format(self.device))
         self.network.to(self.device)
+
+        if self.config:
+            LEARNING_RATE = self.config['learning_rate']
+        print(f"LEARNING_RATE: {LEARNING_RATE}")
 
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=LEARNING_RATE,
                                           weight_decay=WEIGHT_DECAY, eps=ADAM_EPS)
