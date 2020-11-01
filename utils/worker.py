@@ -122,7 +122,7 @@ class Worker(object):
         self.output("Hyperparameters:\n\
                     Learning Rate: {}\n\
                     Attention Head Size: {}\n\
-                    No. Attentions Hedas: {}".format(
+                    No. Attention Heads: {}".format(
                         self.config['learning_rate'],
                         self.config['attention_head_size'],
                         self.config['attention_heads']

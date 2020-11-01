@@ -64,11 +64,13 @@ class SelfAttentionLayer(nn.Module):
         return output
 
 class TransformerLayer(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(TransformerLayer, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
-        self.attention_residual = ResidualLayer(vec_size, vec_size)
-        self.attention_layer_norm = LayerNorm(vec_size)
+        self.attention_residual = ResidualLayer(vec_size, vec_size, rezero)
+        self.rezero = rezero
+        if not self.rezero:
+            self.attention_layer_norm = LayerNorm(vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
@@ -78,7 +80,8 @@ class TransformerLayer(nn.Module):
         # Attention phase.
         att_output = self.attention(input)
         att_output = self.attention_residual(att_output, input)
-        att_output = self.attention_layer_norm(att_output)
+        if not self.rezero:
+            att_output = self.attention_layer_norm(att_output)
 
         # Feedforward phase.
         output = self.feedforward(att_output)
@@ -88,7 +91,7 @@ class TransformerLayer(nn.Module):
         return output
 
 class BaseLayerA(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(BaseLayerA, self).__init__()
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
@@ -103,7 +106,7 @@ class BaseLayerA(nn.Module):
         return output
 
 class BaseLayerB(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(BaseLayerB, self).__init__()
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
@@ -117,13 +120,15 @@ class BaseLayerB(nn.Module):
         output = self.feedforward_residual_layer_norm(output, input)
         return output
 
-class AltTransformerLayer(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
-        super(AltTransformerLayer, self).__init__()
+class NormalizedOriginalLayer(nn.Module):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
+        super(NormalizedOriginalLayer, self).__init__()
         self.attention = NormalizedAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_inner_layer_norm = LayerNorm(vec_size)
-        self.attention_residual = ResidualLayer(vec_size, vec_size)
-        self.attention_outer_layer_norm = LayerNorm(vec_size)
+        self.attention_residual = ResidualLayer(vec_size, vec_size, rezero)
+        self.rezero = rezero
+        if not self.rezero:
+            self.attention_outer_layer_norm = LayerNorm(vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_residual = ResidualLayer(hidden_layer_size, vec_size)
@@ -135,7 +140,8 @@ class AltTransformerLayer(nn.Module):
         att_output = self.attention_inner_layer_norm(att_output)
         att_output = F.gelu(att_output)
         att_output = self.attention_residual(att_output,input)
-        att_output = self.attention_outer_layer_norm(att_output)
+        if not self.rezero:
+            att_output = self.attention_outer_layer_norm(att_output)
 
         # Feedforward phase.
         output = self.feedforward(att_output)
@@ -145,7 +151,7 @@ class AltTransformerLayer(nn.Module):
         return output
 
 class BERT(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(BERT, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_residual = ResidualLayer(vec_size, vec_size)
@@ -223,11 +229,12 @@ class NormalizedAttentionLayer(nn.Module):
         return output
 
 class NAP(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(NAP, self).__init__()
+        self.rezero = rezero
         self.attention = NormalizedAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_layer_norm = LayerNorm(vec_size)
-        self.attention_residual_layer_norm = LayerNormResidual(vec_size, vec_size)
+        self.attention_residual_layer_norm = LayerNormResidual(vec_size, vec_size, self.rezero)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
@@ -248,7 +255,7 @@ class NAP(nn.Module):
         return output
 
 class MTE(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(MTE, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_inner_layer_norm = LayerNorm(vec_size)
@@ -333,7 +340,7 @@ class NoOnlineLogitNormalizationLayer(nn.Module):
         return output
 
 class NON(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(NON, self).__init__()
         self.attention = NoOnlineLogitNormalizationLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
@@ -356,7 +363,7 @@ class NON(nn.Module):
         return output
 
 class SUM(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(SUM, self).__init__()
         self.sum_layer_norm = LayerNorm(vec_size)
 
@@ -378,7 +385,7 @@ class SUM(nn.Module):
         return output
 
 class MAX(nn.Module):
-    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size):
+    def __init__(self, vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero=False):
         super(MAX, self).__init__()
         self.max_layer_norm = LayerNorm(vec_size)
 
@@ -400,7 +407,7 @@ class MAX(nn.Module):
         return output
 
 class Transformer(nn.Module):
-    def __init__(self, transformer_type, num_attention_heads, attention_head_size, num_layers, hidden_layer_size):
+    def __init__(self, transformer_type, num_attention_heads, attention_head_size, num_layers, hidden_layer_size, rezero):
         super(Transformer, self).__init__()
         vec_size = num_attention_heads * attention_head_size
         self.layers = nn.ModuleList()
@@ -419,8 +426,8 @@ class Transformer(nn.Module):
             TransformerLayerType = SUM
         elif transformer_type == "MAX":
             TransformerLayerType = MAX
-        elif transformer_type == "Alt":
-            TransformerLayerType = AltTransformerLayer
+        elif transformer_type == "NormalizedOriginal":
+            TransformerLayerType = NormalizedOriginalLayer
         elif transformer_type == "BaseA":
             TransformerLayerType = BaseLayerA
         elif transformer_type == "BaseB":
@@ -430,7 +437,7 @@ class Transformer(nn.Module):
             exit(-1)
 
         for i in range(num_layers):
-            self.layers.append(TransformerLayerType(vec_size, num_attention_heads, attention_head_size, hidden_layer_size))
+            self.layers.append(TransformerLayerType(vec_size, num_attention_heads, attention_head_size, hidden_layer_size, rezero))
 
     def forward(self, tens):
         for layer in self.layers:

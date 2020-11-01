@@ -19,6 +19,7 @@ REWARD_SCALE = spec.val("REWARD_SCALE")
 ADAM_EPS = spec.val("ADAM_EPS")
 ANNEAL_LR = spec.val("ANNEAL_LR")
 WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
+REZERO = spec.val("REZERO")
 if ANNEAL_LR:
     LR_GAMMA = spec.val("LR_GAMMA")
     from torch.optim.lr_scheduler import StepLR
@@ -55,6 +56,7 @@ class A3cAgent(object):
         if ANNEAL_LR:
             self.scheduler = StepLR(self.optimizer, step_size=1, gamma=LR_GAMMA)
         print("Transformer Type: {}".format(WMG_TRANSFORMER_TYPE))
+        print("Re-Zero: {}".format(REZERO))
         print("{:11,d} trainable parameters".format(self.count_parameters(self.network)))
 
     def count_parameters(self, network):

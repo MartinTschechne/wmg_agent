@@ -117,3 +117,10 @@ results/
 
 # exclude new models
 models/*.pth
+
+# exclude plots
+plots/
+
+# exclude slurm output and error
+*.out
+*.err
