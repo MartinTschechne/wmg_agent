@@ -117,6 +117,8 @@ results/
 
 # exclude new models
 models/*.pth
+models/20*
+models/*/*.pth
 
 # exclude plots
 plots/

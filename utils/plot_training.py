@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 import json
+import pandas as pd
 
 def extract_success_rate(lines):
     '''Read success rate from output file.'''
@@ -14,6 +15,34 @@ def extract_success_rate(lines):
         idx = l.index('Success')
         success_rate.append(float(l[idx-1]))
     return success_rate
+
+def extract_time_steps(lines):
+    ''''''
+    time = float(lines[-2].split('sec')[0].lstrip(' ').rstrip(' '))
+    steps = int(lines[-2].split('steps')[0].split('sec')[1].lstrip(' ').rstrip(' ').replace(',',''))
+    return time, steps
+
+def plot_rezero():
+    files = []
+    files.append(os.path.abspath('./results/NAP_0_20-11-01_07-39-07.txt'))
+    files.append(os.path.abspath('./results/201022_array_job_results/NAP_0_20-10-19_14-24-24.txt'))
+    model = files[0].split('/')[-1].split('_')[0]
+    for file_path, mode in zip(files,['ReZero','Normal']):
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+        success_rate = extract_success_rate(lines)
+        steps = np.linspace(1e3,1e3*len(success_rate),len(success_rate))
+        plt.plot(steps,success_rate,label=f"{mode}, SR: {max(success_rate)}")
+        plt.ylim((0.,1.1))
+        plt.xlim((0,2e5))
+        plt.hlines(y = 0.99, xmin=0,xmax=2e5,linestyle='--',color='r')
+        plt.ticklabel_format(style='sci',axis='x',scilimits=(0,0))
+        plt.xlabel('Steps')
+        plt.ylabel('Success Rate')
+        plt.title(f'{model}')
+        plt.legend(loc='lower right')
+    plt.savefig(f'./plots/Rezero-{model}.png',dpi=100)
+    plt.show()
 
 def plot_single(folder_path):
     files = glob.glob(os.path.join(os.path.abspath(folder_path),'_*.txt'))
@@ -154,29 +183,47 @@ def correlation2(path, model):
         params = json.load(f)
     files = glob.glob(os.path.join(os.path.abspath(path),f"{model}_*.txt"))
 
-    max_sr, lr, model_dim = list(), list(), list()
+    max_sr, lr, model_dim, markers = list(), list(), list(), list()
     for file_path in files:
         idx = file_path.split('/')[-1].split('_')[1]
         with open(file_path, 'r') as f:
             lines = f.readlines()
-        if "overall reward per step" in lines[-1]:
+        if "overall reward per step" in lines[-1] and params[idx]['attention_heads'] < 4:
             lr.append(params[idx]['learning_rate'])
             max_sr.append(max(extract_success_rate(lines)))
             model_dim.append(params[idx]['attention_head_size']*params[idx]['attention_heads'])
+            markers.append(f"${params[idx]['attention_heads']}$")
+            # print(f"Idx: {idx}, No. heads: {params[idx]['attention_heads']}, SR: {max_sr[-1]}")
         else:
             print(idx)
 
     plt.set_cmap('coolwarm')
     fig, ax = plt.subplots()
-    ax.set_title(f"{model}")
-    ax0 = ax.scatter(np.log(model_dim), np.log(lr), c=max_sr,vmin=0.5,vmax=1.)
+    ax.set_title(f"{model} single-layer")
+    ax0 = ax.scatter(np.log(model_dim), np.log(lr),c=max_sr,vmin=0.5,vmax=1.)
     ax.set_ylabel('log Learning Rate')
     ax.set_xlabel('log Model Dimension')
     plt.colorbar(ax0, ax=ax)
 
     plt.tight_layout()
-    # plt.savefig(f"./plots/{model}-correlation2.png",dpi=100)
+    # plt.savefig(f"./plots/{model}-correlation-single-layer.png",dpi=100)
+    # plt.show()
+
+def plot_hp_IDs():
+    with open('./specs/hyperparameter-combinations.json','r') as f:
+        params = json.load(f)
+
+    for idx in range(89):
+        p = params[str(idx)]
+        model_dim = np.log(p['attention_head_size']*p['attention_heads'])
+        lr = np.log(p['learning_rate'])
+        plt.scatter(model_dim, lr, s=150, marker=f"${idx}$",c='black')
+    plt.title("Hyperparameter ID mapping")
+    plt.xlabel("log model dimension")
+    plt.ylabel("log learning rate")
+    plt.grid()
     plt.show()
+
 
 def correlation_size(path, model):
     with open('./specs/hyperparameter-combinations.json','r') as f:
@@ -209,6 +256,90 @@ def correlation_size(path, model):
     plt.show()
 
 
+def few_head_results(path):
+    with open('./specs/hyperparameter-combinations.json','r') as f:
+        params = json.load(f)
+
+    print(f"Config, NAP, NormalizedOriginal, Original")
+    df = {
+            'ID':[],
+            'num_heads':[],
+            'head_size':[],
+            'learning_rate':[],
+            'NAP':[],
+            'NormalizedOriginal':[],
+            'Original':[]}
+    for i in range(len(params)):
+        idx = str(i)
+        if params[idx]['attention_heads'] >= 1:
+            files = glob.glob(os.path.join(os.path.abspath(path),f"*_{idx}_*.txt"))
+            assert len(files) == 3, print(files)
+            max_sr, num_heads, models = list(), list(), list()
+            output = f"{idx,params[idx]['attention_heads'],params[idx]['attention_head_size']}"
+            df['ID'].append(i)
+            df['num_heads'].append(params[idx]['attention_heads'])
+            df['head_size'].append(params[idx]['attention_head_size'])
+            df['learning_rate'].append(params[idx]['learning_rate'])
+            for file_path in sorted(files):
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                if "overall reward per step" in lines[-1]:
+                    models.append(file_path.split('/')[-1].split('_')[0])
+                    num_heads.append(params[idx]['attention_heads'])
+                    max_sr.append(max(extract_success_rate(lines)))
+                    output += f", {max_sr[-1]}"
+                    df[models[-1]].append(max_sr[-1])
+                else:
+                    models.append(file_path.split('/')[-1].split('_')[0])
+                    df[models[-1]].append(0)
+            print(output)
+    df = pd.DataFrame.from_dict(df)
+    df.set_index('ID', inplace=True)
+    df.sort_values(by=['num_heads', 'head_size','learning_rate'],inplace=True)
+    print(df)
+
+def different_levels_single_layer(path):
+    with open('./specs/hyperparameter-combinations-NAP.json','r') as f:
+        params = json.load(f)
+
+        df = {
+                'ID':[],
+                'num_heads':[],
+                'head_size':[],
+                'learning_rate':[],
+                'NAP':[],
+                'Training Time': [],
+                'Steps': []}
+        for i in range(50,50+len(params)):
+            idx = str(i)
+            files = glob.glob(os.path.join(os.path.abspath(path),f"*_{idx}_*.txt"))
+            assert len(files) == 1, print(files)
+            output = f"{idx,params[idx]['attention_heads'],params[idx]['attention_head_size']}"
+            df['ID'].append(i)
+            df['num_heads'].append(params[idx]['attention_heads'])
+            df['head_size'].append(params[idx]['attention_head_size'])
+            df['learning_rate'].append(params[idx]['learning_rate'])
+            with open(files[0], 'r') as f:
+                lines = f.readlines()
+            if "overall reward per step" in lines[-1]:
+                model = files[0].split('/')[-1].split('_')[0]
+                num_heads =  params[idx]['attention_heads']
+                max_sr = max(extract_success_rate(lines))
+                output += f", {max_sr}"
+                df[model].append(max_sr)
+                t, s = extract_time_steps(lines)
+                df['Training Time'].append(t)
+                df['Steps'].append(s)
+            else:
+                model = files.split('/')[-1].split('_')[0]
+                df[model].append(0)
+            print(output)
+        df = pd.DataFrame.from_dict(df)
+        df.set_index('ID', inplace=True)
+        df.sort_values(by=['num_heads', 'head_size','learning_rate'],inplace=True)
+        print(df)
+        print(df.describe())
+
 def main():
     num_args = len(sys.argv) - 1
     if num_args != 1:
@@ -227,8 +358,17 @@ def main():
     # who_won(folder_path)
 
     ### correlation
-    correlation_size(folder_path, "NormalizedOriginal")
+    # correlation2(folder_path, "NormalizedOriginal")
 
+    ### rezero
+    # plot_rezero()
+
+    ### results for few heads across models
+    # few_head_results(folder_path)
+
+    # plot_hp_IDs()
+
+    different_levels_single_layer(folder_path)
 
 if __name__ == '__main__':
     main()

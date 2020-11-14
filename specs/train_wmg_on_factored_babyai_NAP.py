@@ -6,14 +6,14 @@
 # general
 TYPE_OF_RUN = train  # train, test, test_episodes, render
 LOAD_MODEL_FROM = None
-SAVE_MODELS_TO = models/nap_wmg_factored_babyai.pth
+SAVE_MODELS_TO = models/X_nap_wmg_factored_babyai.pth
 
 # worker.py
 ENV = BabyAI_Env
 ENV_RANDOM_SEED = randint  # Use an integer for deterministic training.
 AGENT_RANDOM_SEED = 1
 REPORTING_INTERVAL = 1000
-TOTAL_STEPS = 200000
+TOTAL_STEPS = 250000
 ANNEAL_LR = False
 
 # A3cAgent
@@ -23,7 +23,7 @@ AGENT_NET = WMG_Network
 V2 = False
 
 # BabyAI_Env
-BABYAI_ENV_LEVEL = BabyAI-GoToLocal-v0
+BABYAI_ENV_LEVEL = BabyAI-GoToRedBall-v0
 USE_SUCCESS_RATE = True
 SUCCESS_RATE_THRESHOLD = 0.99
 HELDOUT_TESTING = True

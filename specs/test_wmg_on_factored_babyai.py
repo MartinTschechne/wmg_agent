@@ -7,7 +7,7 @@
 TYPE_OF_RUN = test_episodes  # train, test, test_episodes, render
 NUM_EPISODES_TO_TEST = 1000
 MIN_FINAL_REWARD_FOR_SUCCESS = 1.0
-LOAD_MODEL_FROM = models/new_wmg_factored_babyai.pth
+LOAD_MODEL_FROM = models/wmg_factored_babyai.pth
 SAVE_MODELS_TO = None
 
 # worker.py
@@ -25,7 +25,7 @@ AGENT_NET = WMG_Network
 V2 = False
 
 # BabyAI_Env
-BABYAI_ENV_LEVEL = BabyAI-GoToLocal-v0
+BABYAI_ENV_LEVEL = BabyAI-PickupLoc-v0
 USE_SUCCESS_RATE = True
 SUCCESS_RATE_THRESHOLD = 0.99
 HELDOUT_TESTING = False
@@ -54,3 +54,5 @@ WMG_NUM_ATTENTION_HEADS = 2
 WMG_ATTENTION_HEAD_SIZE = 128
 WMG_HIDDEN_SIZE = 32
 AC_HIDDEN_LAYER_SIZE = 2048
+WMG_TRANSFORMER_TYPE = Original
+REZERO = False

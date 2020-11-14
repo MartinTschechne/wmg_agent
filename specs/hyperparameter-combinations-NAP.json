@@ -1,0 +1,197 @@
+{
+  "50": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 8,
+    "attention_heads": 1
+  },
+  "51": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 8,
+    "attention_heads": 2
+  },
+  "52": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 8,
+    "attention_heads": 3
+  },
+  "53": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 12,
+    "attention_heads": 1
+  },
+  "54": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 12,
+    "attention_heads": 2
+  },
+  "55": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 12,
+    "attention_heads": 3
+  },
+  "56": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 16,
+    "attention_heads": 1
+  },
+  "57": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 16,
+    "attention_heads": 2
+  },
+  "58": {
+    "learning_rate": 0.00025,
+    "attention_head_size": 16,
+    "attention_heads": 3
+  },
+  "59": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 24,
+    "attention_heads": 1
+  },
+  "60": {
+    "learning_rate": 0.00025,
+    "attention_head_size": 24,
+    "attention_heads": 2
+  },
+  "61": {
+    "learning_rate": 0.00016,
+    "attention_head_size": 24,
+    "attention_heads": 3
+  },
+  "62": {
+    "learning_rate": 0.0004,
+    "attention_head_size": 32,
+    "attention_heads": 1
+  },
+  "63": {
+    "learning_rate": 0.00025,
+    "attention_head_size": 32,
+    "attention_heads": 2
+  },
+  "64": {
+    "learning_rate": 0.00016,
+    "attention_head_size": 32,
+    "attention_heads": 3
+  },
+  "65": {
+    "learning_rate": 0.00025,
+    "attention_head_size": 48,
+    "attention_heads": 1
+  },
+  "66": {
+    "learning_rate": 0.00016,
+    "attention_head_size": 48,
+    "attention_heads": 2
+  },
+  "67": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 48,
+    "attention_heads": 3
+  },
+  "68": {
+    "learning_rate": 0.00025,
+    "attention_head_size": 64,
+    "attention_heads": 1
+  },
+  "69": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 64,
+    "attention_heads": 2
+  },
+  "70": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 64,
+    "attention_heads": 3
+  },
+  "71": {
+    "learning_rate": 0.00016,
+    "attention_head_size": 90,
+    "attention_heads": 1
+  },
+  "72": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 90,
+    "attention_heads": 2
+  },
+  "73": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 90,
+    "attention_heads": 3
+  },
+  "74": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 128,
+    "attention_heads": 1
+  },
+  "75": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 128,
+    "attention_heads": 2
+  },
+  "76": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 128,
+    "attention_heads": 3
+  },
+  "77": {
+    "learning_rate": 0.0001,
+    "attention_head_size": 180,
+    "attention_heads": 1
+  },
+  "78": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 180,
+    "attention_heads": 2
+  },
+  "79": {
+    "learning_rate": 4e-05,
+    "attention_head_size": 180,
+    "attention_heads": 3
+  },
+  "80": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 256,
+    "attention_heads": 1
+  },
+  "81": {
+    "learning_rate": 4e-05,
+    "attention_head_size": 256,
+    "attention_heads": 2
+  },
+  "82": {
+    "learning_rate": 4e-05,
+    "attention_head_size": 256,
+    "attention_heads": 3
+  },
+  "83": {
+    "learning_rate": 6.3e-05,
+    "attention_head_size": 360,
+    "attention_heads": 1
+  },
+  "84": {
+    "learning_rate": 4e-05,
+    "attention_head_size": 360,
+    "attention_heads": 2
+  },
+  "85": {
+    "learning_rate": 2.5e-05,
+    "attention_head_size": 360,
+    "attention_heads": 3
+  },
+  "86": {
+    "learning_rate": 4e-05,
+    "attention_head_size": 512,
+    "attention_heads": 1
+  },
+  "87": {
+    "learning_rate": 2.5e-05,
+    "attention_head_size": 512,
+    "attention_heads": 2
+  },
+  "88": {
+    "learning_rate": 2.5e-05,
+    "attention_head_size": 512,
+    "attention_heads": 3
+  }
+}

@@ -6,7 +6,7 @@
 # general
 TYPE_OF_RUN = train  # train, test, test_episodes, render
 LOAD_MODEL_FROM = None
-SAVE_MODELS_TO = models/debug_wmg_factored_babyai.pth
+SAVE_MODELS_TO = models/X_debug_wmg_factored_babyai.pth
 
 # worker.py
 ENV = BabyAI_Env
@@ -47,10 +47,10 @@ WEIGHT_DECAY = 0.
 WMG_MAX_OBS = 0
 WMG_MAX_MEMOS = 8
 WMG_MEMO_SIZE = 32
-WMG_NUM_LAYERS = 4
+WMG_NUM_LAYERS = 1
 WMG_NUM_ATTENTION_HEADS = 2
 WMG_ATTENTION_HEAD_SIZE = 128
 WMG_HIDDEN_SIZE = 32
 AC_HIDDEN_LAYER_SIZE = 2048
 WMG_TRANSFORMER_TYPE = NAP
-REZERO = True
+REZERO = False

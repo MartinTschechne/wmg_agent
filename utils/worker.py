@@ -32,7 +32,7 @@ class Worker(object):
 
         # Open config_id to extract hyperparameters
         self.config_id = config_id
-        if int(self.config_id) < 50:
+        if int(self.config_id) < 89:
             with open('./specs/hyperparameter-combinations.json','r') as f:
                 configs = json.load(f)
             self.config = configs[self.config_id]
@@ -293,7 +293,8 @@ class Worker(object):
                 if metric_value > self.best_metric_value:
                     self.best_metric_value = metric_value
                     if SAVE_MODELS_TO is not None:
-                        self.agent.save_model(SAVE_MODELS_TO)
+                        # add config ID in model path name
+                        self.agent.save_model(SAVE_MODELS_TO.replace("X",str(self.config_id)))
                         saved = True
 
                 # Report one line.
