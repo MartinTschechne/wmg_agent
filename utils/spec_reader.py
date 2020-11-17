@@ -3,6 +3,7 @@
 import random
 import time
 import os
+import json
 
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -65,11 +66,16 @@ class SpecReader(object):
         full_path = os.path.join(os.path.dirname(CODE_DIR), runspec_path)
         self.settings = {}
         self.lines_or_settings_to_output = []
-        self.read_spec_file(open(full_path, 'r'))
+        self.read_spec_file(full_path)
         global spec
         spec = self
 
-    def read_spec_file(self, file):
+    def read_spec_file(self, full_path):
+        with open(full_path, 'r') as f:
+            self.settings = json.load(f)
+        if self.settings["ENV_RANDOM_SEED"] == "randint":
+            self.settings["ENV_RANDOM_SEED"] = spec_rand.randint(0,999999999)
+        '''
         line_num = 0
         for line in file:
             line = line[:-1]
@@ -85,9 +91,10 @@ class SpecReader(object):
             setting = Setting(name_string, value_string, line_num)
             self.settings[name_string] = setting
             self.lines_or_settings_to_output.append(setting)
+        '''
 
     def val(self, name):
-        return self.settings[name].get_value()
+        return self.settings[name] #.get_value()
 
     def output_to_file(self, file_name):
         section_header = None

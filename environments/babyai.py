@@ -4,16 +4,16 @@ import gym
 import babyai  # This registers the 19 MiniGrid levels.
 import numpy as np
 
-from utils.spec_reader import spec
-BABYAI_ENV_LEVEL = spec.val("BABYAI_ENV_LEVEL")
-USE_SUCCESS_RATE = spec.val("USE_SUCCESS_RATE")  # Used by post-processing files.
-SUCCESS_RATE_THRESHOLD = spec.val("SUCCESS_RATE_THRESHOLD")
-HELDOUT_TESTING = spec.val("HELDOUT_TESTING")
-NUM_TEST_EPISODES = spec.val("NUM_TEST_EPISODES")
-BINARY_REWARD = spec.val("BINARY_REWARD")
-OBS_ENCODER = spec.val("OBS_ENCODER")
-
-assert USE_SUCCESS_RATE
+# from utils.spec_reader import spec
+# BABYAI_ENV_LEVEL = spec.val("BABYAI_ENV_LEVEL")
+# USE_SUCCESS_RATE = spec.val("USE_SUCCESS_RATE")  # Used by post-processing files.
+# SUCCESS_RATE_THRESHOLD = spec.val("SUCCESS_RATE_THRESHOLD")
+# HELDOUT_TESTING = spec.val("HELDOUT_TESTING")
+# NUM_TEST_EPISODES = spec.val("NUM_TEST_EPISODES")
+# BINARY_REWARD = spec.val("BINARY_REWARD")
+# OBS_ENCODER = spec.val("OBS_ENCODER")
+#
+# assert USE_SUCCESS_RATE
 
 color_list = ['red', 'green', 'blue', 'purple', 'yellow', 'grey']
 color_index_dict = {}
@@ -282,10 +282,15 @@ class ClauseEncoder(object):
 
 
 class BabyAI_Env(object):
-    def __init__(self, seed=None):
+    def __init__(self, seed=None, spec=None):
+        if spec is not None:
+            self.spec = spec
+        else:
+            print("No spec defined.")
+            exit(0)
         if not seed:
             seed = 25912
-        level = BABYAI_ENV_LEVEL
+        level = self.spec["BABYAI_ENV_LEVEL"]
 
         self.env = gym.make(level)
         self.env.seed(seed)
@@ -299,20 +304,20 @@ class BabyAI_Env(object):
         self.num_door_states = 3
         self.action_space = 7
         self.max_num_factors = 12
-        if OBS_ENCODER == 'Flat':
+        if self.spec["OBS_ENCODER"] == 'Flat':
             self.observation_space = self.action_space + self.num_orientations  # Last action, and current direction.
             self.observation_space += self.retina_width * self.retina_width * (self.num_cell_types + self.num_colors + self.num_door_states)  # Image.
             self.observation_space += self.encoder.double_object_vector_length
-        elif OBS_ENCODER == 'CnnFlat':
+        elif self.spec["OBS_ENCODER"] == 'CnnFlat':
             self.observation_space = self.action_space + self.num_orientations  # Last action, and current direction.
             self.observation_space += self.encoder.double_object_vector_length
-        elif OBS_ENCODER == 'Factored':
+        elif self.spec["OBS_ENCODER"] == 'Factored':
             self.observation_global_vector_size = self.action_space + self.num_orientations + 2 * (1 + self.retina_width)
             self.observation_global_vector_size += self.encoder.double_object_vector_length
             self.observation_factor_vector_size = self.num_object_types + self.num_colors + 2 * (1 + self.retina_width)
             self.observation_factor_vector_size += self.num_door_states
             self.observation_space = (self.observation_global_vector_size, self.observation_factor_vector_size)
-        elif OBS_ENCODER == 'FactoredThenFlattened':
+        elif self.spec["OBS_ENCODER"] == 'FactoredThenFlattened':
             self.observation_global_vector_size = self.action_space + self.num_orientations + 2 * (1 + self.retina_width)
             self.observation_global_vector_size += self.encoder.double_object_vector_length
             self.observation_factor_vector_size = self.num_object_types + self.num_colors + 2 * (1 + self.retina_width)
@@ -338,13 +343,13 @@ class BabyAI_Env(object):
         self.num_sr = 0.
 
     def assemble_current_observation(self, obs, last_action=None):
-        if OBS_ENCODER == 'Flat':
+        if self.spec["OBS_ENCODER"] == 'Flat':
             return self.encode_flat(obs, last_action)
-        if OBS_ENCODER == 'CnnFlat':
+        if self.spec["OBS_ENCODER"] == 'CnnFlat':
             return self.encode_cnn_flat(obs, last_action)
-        elif OBS_ENCODER == 'Factored':
+        elif self.spec["OBS_ENCODER"] == 'Factored':
             return self.encode_factored(obs, last_action)
-        elif OBS_ENCODER == 'FactoredThenFlattened':
+        elif self.spec["OBS_ENCODER"] == 'FactoredThenFlattened':
             return self.flatten(self.encode_factored(obs, last_action))
 
     def flatten(self, obs_list):
@@ -560,7 +565,7 @@ class BabyAI_Env(object):
 
     def step(self, action):
         obs, reward, done, env_info = self.env.step(action)
-        if BINARY_REWARD:
+        if self.spec["BINARY_REWARD"]:
             if reward > 0.:
                 reward = 1.
         self.update_online_test_sums(reward, done)
@@ -608,7 +613,7 @@ class BabyAI_Env(object):
             self.running_success_rate = self.success_sum / len(self.success_buf)
 
     def report_online_test_metric(self):
-        if HELDOUT_TESTING:
+        if self.spec["HELDOUT_TESTING"]:
             return self.heldout_test()
         else:
             return self.online_test()
@@ -619,8 +624,8 @@ class BabyAI_Env(object):
         # Evaluate the current model on a random set of environments.
         agent = self.test_agent
         env = self.test_environment
-        max_episodes = NUM_TEST_EPISODES
-        num_solutions_required = int(max_episodes * SUCCESS_RATE_THRESHOLD)
+        max_episodes = self.spec["NUM_TEST_EPISODES"]
+        num_solutions_required = int(max_episodes * self.spec["SUCCESS_RATE_THRESHOLD"])
         num_failures_allowed = max_episodes - num_solutions_required
         num_solved = 0
         num_failed = 0
@@ -641,16 +646,16 @@ class BabyAI_Env(object):
         sr = num_solved / (num_solved + num_failed)
 
         # Update the final reported metrics.
-        if sr < SUCCESS_RATE_THRESHOLD:
+        if sr < self.spec["SUCCESS_RATE_THRESHOLD"]:
             # Extrapolate forward to the point where the threshold would be crossed.
             self.sum_sr += sr
             self.num_sr += 1
             mean_sr = self.sum_sr / self.num_sr
-            se = SUCCESS_RATE_THRESHOLD * self.num_local_steps / max(0.1/max_episodes, mean_sr)  # Should be global steps
+            se = self.spec["SUCCESS_RATE_THRESHOLD"] * self.num_local_steps / max(0.1/max_episodes, mean_sr)  # Should be global steps
         else:
             # Interpolate back to the point where the threshold was crossed.
             full_delta_steps = self.num_local_steps - self.prev_num_local_steps
-            sufficient_delta_success = SUCCESS_RATE_THRESHOLD - self.prev_sr
+            sufficient_delta_success = self.spec["SUCCESS_RATE_THRESHOLD"] - self.prev_sr
             full_delta_success = sr - self.prev_sr
             se = self.prev_num_local_steps + full_delta_steps * sufficient_delta_success / full_delta_success
         self.prev_sr = sr
@@ -660,7 +665,7 @@ class BabyAI_Env(object):
         metrics = []
         metrics.append((sr, "{:6.4f}".format(sr), "Success rate"))
         metrics.append((se, "{:2.0f}".format(se), "Projected sample efficiency"))
-        ret = (self.step_sum, self.num_episodes, sr, metrics, sr >= SUCCESS_RATE_THRESHOLD)
+        ret = (self.step_sum, self.num_episodes, sr, metrics, sr >= self.spec["SUCCESS_RATE_THRESHOLD"])
 
         # Reset the global sums.
         self.reset_online_test_sums()
@@ -681,10 +686,10 @@ class BabyAI_Env(object):
 
         # Update the final reported metrics.
         if not self.rsr_threshold_reached:
-            if running_success_rate >= SUCCESS_RATE_THRESHOLD:
+            if running_success_rate >= self.spec["SUCCESS_RATE_THRESHOLD"]:
                 self.rsr_threshold_reached = True
                 full_delta_steps = self.num_local_steps - self.sample_efficiency
-                sufficient_delta_success = SUCCESS_RATE_THRESHOLD - self.prev_sr
+                sufficient_delta_success = self.spec["SUCCESS_RATE_THRESHOLD"] - self.prev_sr
                 full_delta_success = running_success_rate - self.prev_sr
                 self.sample_efficiency += full_delta_steps * sufficient_delta_success / full_delta_success
             else:

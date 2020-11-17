@@ -8,49 +8,52 @@ import pytz
 import platform
 import torch
 import numpy as np
+import json
 
-from utils.spec_reader import spec
-TYPE_OF_RUN = spec.val("TYPE_OF_RUN")
-ENV = spec.val("ENV")
-LOAD_MODEL_FROM = spec.val("LOAD_MODEL_FROM")
-SAVE_MODELS_TO = spec.val("SAVE_MODELS_TO")
-ENV_RANDOM_SEED = spec.val("ENV_RANDOM_SEED")
-AGENT_RANDOM_SEED = spec.val("AGENT_RANDOM_SEED")
-REPORTING_INTERVAL = spec.val("REPORTING_INTERVAL")
-TOTAL_STEPS = spec.val("TOTAL_STEPS")
-ANNEAL_LR = spec.val("ANNEAL_LR")
-if ANNEAL_LR:
-    ANNEALING_START = spec.val("ANNEALING_START")
-WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
+# from utils.spec_reader import spec
+# TYPE_OF_RUN = spec.val("TYPE_OF_RUN")
+# ENV = spec.val("ENV")
+# LOAD_MODEL_FROM = spec.val("LOAD_MODEL_FROM")
+# SAVE_MODELS_TO = spec.val("SAVE_MODELS_TO")
+# ENV_RANDOM_SEED = spec.val("ENV_RANDOM_SEED")
+# AGENT_RANDOM_SEED = spec.val("AGENT_RANDOM_SEED")
+# REPORTING_INTERVAL = spec.val("REPORTING_INTERVAL")
+# TOTAL_STEPS = spec.val("TOTAL_STEPS")
+# ANNEAL_LR = spec.val("ANNEAL_LR")
+# if ANNEAL_LR:
+#     ANNEALING_START = spec.val("ANNEALING_START")
+# WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
 
 from agents.a3c import A3cAgent
 
 
 class Worker(object):
-    def __init__(self, config_id=None):
-        torch.manual_seed(AGENT_RANDOM_SEED)
+    def __init__(self, spec):
+        self.spec = spec
+        torch.manual_seed(self.spec["AGENT_RANDOM_SEED"])
 
         # Open config_id to extract hyperparameters
-        self.config_id = config_id
-        if int(self.config_id) < 89:
-            with open('./specs/hyperparameter-combinations.json','r') as f:
-                configs = json.load(f)
-            self.config = configs[self.config_id]
-            print(f"Hyperparameters:\
-                \nLearning Rate: {self.config['learning_rate']}\
-                \nAttention Head Size: {self.config['attention_head_size']}\
-                \nNo. Attention Heads: {self.config['attention_heads']}")
-        else:
-            print("Config ID not available. Config ID must be in the interval [0,49].")
-            exit(-1)
+        # self.config = config_id
+        # self.config_id = config_id
+        # if int(self.config_id) < 89:
+        #     with open('./specs/hyperparameter-combinations.json','r') as f:
+        #         configs = json.load(f)
+        #     self.config = configs[self.config_id]
+        #     print(f"Hyperparameters:\
+        #         \nLearning Rate: {self.config['learning_rate']}\
+        #         \nAttention Head Size: {self.config['attention_head_size']}\
+        #         \nNo. Attention Heads: {self.config['attention_heads']}")
+        # else:
+        #     print("Config ID not available. Config ID must be in the interval [0,49].")
+        #     exit(-1)
 
         self.start_time = time.time()
         self.heldout_testing = False
-        self.environment = self.create_environment(ENV_RANDOM_SEED)
-        self.agent = A3cAgent(self.observation_space, self.action_space, self.config)
+        self.environment = self.create_environment(self.spec["ENV_RANDOM_SEED"])
+        self.agent = A3cAgent(self.observation_space, self.action_space, self.spec)
         if self.heldout_testing:
-            self.environment.test_environment = self.create_environment(ENV_RANDOM_SEED + 1000000)
-            self.environment.test_agent = A3cAgent(self.observation_space, self.action_space, self.config)
+            self.environment.test_environment = self.create_environment(self.spec["ENV_RANDOM_SEED"] + 1000000)
+            self.environment.test_agent = A3cAgent(self.observation_space, self.action_space, self.spec)
             self.environment.test_agent.network = self.agent.network
         self.step_num = 0
         self.total_reward = 0.
@@ -62,20 +65,20 @@ class Worker(object):
         self.best_metric_value = np.NINF
         self.t = None
         self.output_filename = None
-        if LOAD_MODEL_FROM is not None:
-            self.agent.load_model(LOAD_MODEL_FROM)
+        if self.spec["LOAD_MODEL_FROM"] is not None:
+            self.agent.load_model(self.spec["LOAD_MODEL_FROM"])
 
     def execute(self):
-        if TYPE_OF_RUN == 'train':
+        if self.spec["TYPE_OF_RUN"] == 'train':
             self.train()
-        elif TYPE_OF_RUN == 'test':
+        elif self.spec["TYPE_OF_RUN"] == 'test':
             self.test()
-        elif TYPE_OF_RUN == 'test_episodes':
+        elif self.spec["TYPE_OF_RUN"] == 'test_episodes':
             self.test_episodes()
-        elif TYPE_OF_RUN == 'render':
+        elif self.spec["TYPE_OF_RUN"] == 'render':
             self.render()
         else:
-            print('Run type "{}" not recognized.'.format(TYPE_OF_RUN))
+            print('Run type "{}" not recognized.'.format(self.spec["TYPE_OF_RUN"]))
 
     def create_results_output_file(self):
         # Output files are written to the results directory.
@@ -84,25 +87,24 @@ class Worker(object):
             datetime.datetime.utcnow()).astimezone(pytz.timezone("PST8PDT")).strftime("%y-%m-%d_%H-%M-%S")
         code_dir = os.path.dirname(os.path.abspath(__file__))
         results_dir = os.path.join(os.path.dirname(code_dir), 'results')
-        self.output_filename = os.path.join(results_dir, '{}_{}_{}.txt'.format(WMG_TRANSFORMER_TYPE, self.config_id, datetime_string))
+        self.output_filename = os.path.join(results_dir, '{}_{}_{}.txt'.format(self.spec["WMG_TRANSFORMER_TYPE"], self.spec["ID"], datetime_string))
         file = open(self.output_filename, 'w')
         file.close()
 
     def create_environment(self, seed=None):
         # Each new environment should be listed here.
-        if ENV == "Pathfinding_Env":
+        if self.spec["ENV"] == "Pathfinding_Env":
             from environments.pathfinding import Pathfinding_Env
-            environment = Pathfinding_Env(seed)
-        elif ENV == "BabyAI_Env":
+            environment = Pathfinding_Env(seed,self.spec)
+        elif self.spec["ENV"] == "BabyAI_Env":
             from environments.babyai import BabyAI_Env
-            environment = BabyAI_Env(seed)
-            HELDOUT_TESTING = spec.val("HELDOUT_TESTING")
-            self.heldout_testing = HELDOUT_TESTING
-        elif ENV == "Sokoban_Env":
+            environment = BabyAI_Env(seed,self.spec)
+            self.heldout_testing = self.spec["HELDOUT_TESTING"]
+        elif self.spec["ENV"] == "Sokoban_Env":
             from environments.sokoban import Sokoban_Env
-            environment = Sokoban_Env(seed)
+            environment = Sokoban_Env(seed,self.spec)
         else:
-            print("Environment {} not found.".format(ENV))
+            print("Environment {} not found.".format(self.spec["ENV"]))
             exit(0)
         self.observation_space = environment.observation_space
         self.action_space = environment.action_space
@@ -118,44 +120,44 @@ class Worker(object):
     def train(self):
         self.create_results_output_file()
         self.init_episode()
-        spec.output_to_file(self.output_filename)
+        output_to_file(self.output_filename, self.spec)
         self.output("Hyperparameters:\n\
                     Learning Rate: {}\n\
                     Attention Head Size: {}\n\
                     No. Attention Heads: {}".format(
-                        self.config['learning_rate'],
-                        self.config['attention_head_size'],
-                        self.config['attention_heads']
+                        self.spec['LEARNING_RATE'],
+                        self.spec['WMG_ATTENTION_HEAD_SIZE'],
+                        self.spec['WMG_NUM_ATTENTION_HEADS']
                     ))
-        self.take_n_steps(TOTAL_STEPS, None, True)
+        self.take_n_steps(self.spec["TOTAL_STEPS"], None, True)
         self.output("{:8.6f} overall reward per step".format(self.total_reward / self.step_num))
 
     def test(self):
         self.create_results_output_file()
         self.init_episode()
-        spec.output_to_file(self.output_filename)
-        self.take_n_steps(TOTAL_STEPS, None, False)
+        output_to_file(self.output_filename, self.spec)
+        self.take_n_steps(self.spec["TOTAL_STEPS"], None, False)
         self.output("{:8.6f} overall reward per step".format(self.total_reward / self.step_num))
 
     def test_episodes(self):
         # Test the model on all episodes.
         # Success is determined by positive reward on the final step,
         # which works for BabyAI and Sokoban, but is not appropriate for many environments.
-        NUM_EPISODES_TO_TEST = spec.val("NUM_EPISODES_TO_TEST")
-        MIN_FINAL_REWARD_FOR_SUCCESS = spec.val("MIN_FINAL_REWARD_FOR_SUCCESS")
+        # NUM_EPISODES_TO_TEST = spec.val("NUM_EPISODES_TO_TEST")
+        # MIN_FINAL_REWARD_FOR_SUCCESS = spec.val("MIN_FINAL_REWARD_FOR_SUCCESS")
         self.create_results_output_file()
-        spec.output_to_file(self.output_filename)
+        # spec.output_to_file(self.output_filename)
         num_wins = 0
         num_episodes_tested = 0
-        self.output("Testing on {} episodes.".format(NUM_EPISODES_TO_TEST))
+        self.output("Testing on {} episodes.".format(self.spec["NUM_EPISODES_TO_TEST"]))
         start_time = time.time()
-        for episode_id in range(NUM_EPISODES_TO_TEST):
-            torch.manual_seed(AGENT_RANDOM_SEED)
+        for episode_id in range(self.spec["NUM_EPISODES_TO_TEST"]):
+            torch.manual_seed(self.spec["AGENT_RANDOM_SEED"])
             final_reward, steps = self.test_on_episode(episode_id)
-            if final_reward >= MIN_FINAL_REWARD_FOR_SUCCESS:
+            if final_reward >= self.spec["MIN_FINAL_REWARD_FOR_SUCCESS"]:
                 num_wins += 1
             num_episodes_tested += 1
-            if (num_episodes_tested % (NUM_EPISODES_TO_TEST / 10) == 0):
+            if (num_episodes_tested % (self.spec["NUM_EPISODES_TO_TEST"] / 10) == 0):
                 self.output('{:4d} / {:5d}  =  {:5.1f}%'.format(num_wins, num_episodes_tested, 100.0 * num_wins / num_episodes_tested))
         self.output("Time: {:3.1f} min".format((time.time() - start_time)/60.))
         self.output("Success rate = {} / {} episodes = {:5.1f}%".format(num_wins, num_episodes_tested, 100.0 * num_wins / num_episodes_tested))
@@ -276,9 +278,9 @@ class Worker(object):
         terminate = False
 
         # Report results periodically.
-        if (self.step_num % REPORTING_INTERVAL) == 0:
-            if ANNEAL_LR:
-                if self.step_num > ANNEALING_START:
+        if (self.step_num % self.spec["REPORTING_INTERVAL"]) == 0:
+            if self.spec["ANNEAL_LR"]:
+                if self.step_num > self.spec["ANNEALING_START"]:
                     self.agent.anneal_lr()
             sz = "{:10.2f} sec  {:12,d} steps".format(
                 time.time() - self.start_time, self.step_num)
@@ -292,9 +294,9 @@ class Worker(object):
                 # Is this the best metric so far?
                 if metric_value > self.best_metric_value:
                     self.best_metric_value = metric_value
-                    if SAVE_MODELS_TO is not None:
+                    if self.spec["SAVE_MODELS_TO"] is not None:
                         # add config ID in model path name
-                        self.agent.save_model(SAVE_MODELS_TO.replace("X",str(self.config_id)))
+                        self.agent.save_model(self.spec["SAVE_MODELS_TO"].replace("X",str(self.spec["ID"])))
                         saved = True
 
                 # Report one line.
@@ -310,3 +312,10 @@ class Worker(object):
             self.output(sz)
 
         return terminate
+
+def output_to_file(file_name, spec):
+    file = open(file_name, 'a')
+    for k, v in spec.items():
+        file.write(f"{k} = {v}\n")
+    file.write('\n')
+    file.close()

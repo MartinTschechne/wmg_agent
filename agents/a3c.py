@@ -6,37 +6,36 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.spec_reader import spec
-AGENT_RANDOM_SEED = spec.val("AGENT_RANDOM_SEED")
-A3C_T_MAX = spec.val("A3C_T_MAX")
-LEARNING_RATE = spec.val("LEARNING_RATE")
-DISCOUNT_FACTOR = spec.val("DISCOUNT_FACTOR")
-GRADIENT_CLIP = spec.val("GRADIENT_CLIP")
-WEIGHT_DECAY = spec.val("WEIGHT_DECAY")
-AGENT_NET = spec.val("AGENT_NET")
-ENTROPY_TERM_STRENGTH = spec.val("ENTROPY_TERM_STRENGTH")
-REWARD_SCALE = spec.val("REWARD_SCALE")
-ADAM_EPS = spec.val("ADAM_EPS")
-ANNEAL_LR = spec.val("ANNEAL_LR")
-WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
-REZERO = spec.val("REZERO")
-if ANNEAL_LR:
-    LR_GAMMA = spec.val("LR_GAMMA")
-    from torch.optim.lr_scheduler import StepLR
-
-torch.manual_seed(AGENT_RANDOM_SEED)
+# from utils.spec_reader import spec
+# AGENT_RANDOM_SEED = spec.val("AGENT_RANDOM_SEED")
+# A3C_T_MAX = spec.val("A3C_T_MAX")
+# LEARNING_RATE = spec.val("LEARNING_RATE")
+# DISCOUNT_FACTOR = spec.val("DISCOUNT_FACTOR")
+# GRADIENT_CLIP = spec.val("GRADIENT_CLIP")
+# WEIGHT_DECAY = spec.val("WEIGHT_DECAY")
+# AGENT_NET = spec.val("AGENT_NET")
+# ENTROPY_TERM_STRENGTH = spec.val("ENTROPY_TERM_STRENGTH")
+# REWARD_SCALE = spec.val("REWARD_SCALE")
+# ADAM_EPS = spec.val("ADAM_EPS")
+# ANNEAL_LR = spec.val("ANNEAL_LR")
+# WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
+# REZERO = spec.val("REZERO")
+# if ANNEAL_LR:
+#     LR_GAMMA = spec.val("LR_GAMMA")
+#     from torch.optim.lr_scheduler import StepLR
 
 
 class A3cAgent(object):
     ''' A single-worker version of Asynchronous Advantage Actor-Critic (Mnih et al., 2016)'''
-    def __init__(self, observation_space_size, action_space_size, config=None):
-        self.config = config
-        if AGENT_NET == "GRU_Network":
+    def __init__(self, observation_space_size, action_space_size, spec):
+        self.spec = spec
+        torch.manual_seed(self.spec["AGENT_RANDOM_SEED"])
+        if self.spec["AGENT_NET"] == "GRU_Network":
             from agents.networks.gru import GRU_Network
             self.network = GRU_Network(observation_space_size, action_space_size)
-        elif AGENT_NET == "WMG_Network":
+        elif self.spec["AGENT_NET"] == "WMG_Network":
             from agents.networks.wmg import WMG_Network
-            self.network =  WMG_Network(observation_space_size, action_space_size, self.config)
+            self.network =  WMG_Network(observation_space_size, action_space_size, self.spec)
         else:
             assert False  # The specified agent network was not found.
 
@@ -47,16 +46,17 @@ class A3cAgent(object):
         print("Device: {}".format(self.device))
         self.network.to(self.device)
 
-        if self.config:
-            LEARNING_RATE = self.config['learning_rate']
-        print(f"LEARNING_RATE: {LEARNING_RATE}")
+        # if self.config is not None:
+        #     LEARNING_RATE = self.config['learning_rate']
+        print(f"LEARNING_RATE: {self.spec['LEARNING_RATE']}")
 
-        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=LEARNING_RATE,
-                                          weight_decay=WEIGHT_DECAY, eps=ADAM_EPS)
-        if ANNEAL_LR:
-            self.scheduler = StepLR(self.optimizer, step_size=1, gamma=LR_GAMMA)
-        print("Transformer Type: {}".format(WMG_TRANSFORMER_TYPE))
-        print("Re-Zero: {}".format(REZERO))
+        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.spec["LEARNING_RATE"],
+                                          weight_decay=self.spec["WEIGHT_DECAY"], eps=self.spec["ADAM_EPS"])
+        if self.spec["ANNEAL_LR"]:
+            from torch.optim.lr_scheduler import StepLR
+            self.scheduler = StepLR(self.optimizer, step_size=1, gamma=self.spec["LR_GAMMA"])
+        print("Transformer Type: {}".format(self.spec["WMG_TRANSFORMER_TYPE"]))
+        print("Re-Zero: {}".format(self.spec["REZERO"]))
         print("{:11,d} trainable parameters".format(self.count_parameters(self.network)))
 
     def count_parameters(self, network):
@@ -97,11 +97,11 @@ class A3cAgent(object):
         self.values.append(self.value_tensor)
         self.logps.append(self.logp_tensor)
         self.actions.append(self.action_tensor)
-        self.rewards.append(reward * REWARD_SCALE)
+        self.rewards.append(reward * self.spec["REWARD_SCALE"])
         self.num_training_frames_in_buffer += 1
         if done:
             self.adapt_on_end_of_episode()
-        elif self.num_training_frames_in_buffer == A3C_T_MAX:
+        elif self.num_training_frames_in_buffer == self.spec["A3C_T_MAX"]:
             self.adapt_on_end_of_sequence(next_observation)
 
     def adapt_on_end_of_episode(self):
@@ -125,11 +125,11 @@ class A3cAgent(object):
         loss = self.loss_function(next_value, torch.cat(self.values), torch.cat(self.logps), torch.cat(self.actions), np.asarray(self.rewards))
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.network.parameters(), GRADIENT_CLIP)
+        torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.spec["GRADIENT_CLIP"])
         self.optimizer.step()
 
     def anneal_lr(self):
-        print('Scaling down the learning rate by {}'.format(LR_GAMMA))
+        print('Scaling down the learning rate by {}'.format(self.spec["LR_GAMMA"]))
         self.scheduler.step()
 
     def loss_function(self, next_value, values, logps, actions, rewards):
@@ -148,7 +148,7 @@ class A3cAgent(object):
         # Note that value errors should be backpropagated through the current value calculation for value updates,
         # but not for policy updates.
         for i in range(buffer_size - 1, -1, -1):
-            td_target = rewards[i] + DISCOUNT_FACTOR * td_target
+            td_target = rewards[i] + self.spec["DISCOUNT_FACTOR"] * td_target
             advantage = td_target - np_values[i]
             td_targets[i] = td_target
             advantages[i] = advantage
@@ -167,4 +167,4 @@ class A3cAgent(object):
 
         entropy_losses = -logps * torch.exp(logps)
         entropy_loss = entropy_losses.sum() # .to(self.device)
-        return policy_loss + 0.5 * value_loss - ENTROPY_TERM_STRENGTH * entropy_loss
+        return policy_loss + 0.5 * value_loss - self.spec["ENTROPY_TERM_STRENGTH"] * entropy_loss
