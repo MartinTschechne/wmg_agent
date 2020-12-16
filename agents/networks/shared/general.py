@@ -5,12 +5,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+BIAS_INIT = 0.4
 
 class LayerNorm(nn.Module):
     def __init__(self, size, variance_epsilon=1e-12):
         super(LayerNorm, self).__init__()
         self.gamma = nn.Parameter(torch.ones(size))
-        self.beta = nn.Parameter(torch.zeros(size))
+        self.beta = nn.Parameter(torch.ones(size)*BIAS_INIT)
         self.variance_epsilon = variance_epsilon
 
     def forward(self, x):
@@ -67,12 +68,14 @@ class Normalize(nn.Module):
     def __init__(self,num_heads,variance_epsilon=1e-12):
         super(Normalize, self).__init__()
         self.gain = nn.Parameter(torch.ones([1,num_heads,1,1]))
-        self.bias = nn.Parameter(torch.zeros([1,num_heads,1,1]))
+        self.bias = nn.Parameter(torch.ones([1,num_heads,1,1])*BIAS_INIT)
         self.variance_epsilon = variance_epsilon
 
     def forward(self, x):
         u = x.mean(-1, keepdim=True)
-        s = (x - u).pow(2).mean(-1, keepdim=True)
+        s = x - u
+        s = s.pow(2)
+        s = s.mean(-1, keepdim=True)
         x = (x - u) / torch.sqrt(s + self.variance_epsilon)
         return self.gain * x + self.bias
 

@@ -314,6 +314,7 @@ class NAP(nn.Module):
         if self.rezero:
             att_output *= self.alpha
         att_output += input
+        # att_output *= 0.5
 
         # Feedforward phase.
         output = self.feedforward(att_output)
@@ -325,6 +326,7 @@ class NAP(nn.Module):
         if self.rezero:
             output *= self.alpha
         output += att_output
+        # output *= 0.5
         return output
 
 class MTE(nn.Module):
@@ -332,8 +334,7 @@ class MTE(nn.Module):
         super(MTE, self).__init__()
         self.attention = SelfAttentionLayer(vec_size, num_attention_heads, attention_head_size)
         self.attention_inner_layer_norm = LayerNorm(vec_size)
-        self.attention_residual = ResidualLayer(vec_size, vec_size)
-        self.attention_outer_layer_norm = LayerNorm(vec_size)
+        self.attention_layer_norm_residual = LayerNormResidual(vec_size, vec_size)
 
         self.feedforward = LinearLayer(vec_size, hidden_layer_size)
         self.feedforward_layer_norm = LayerNorm(hidden_layer_size)
@@ -342,10 +343,9 @@ class MTE(nn.Module):
     def forward(self, input):
         # Attention phase.
         att_output = self.attention(input)
-        # att_output = self.attention_inner_layer_norm(att_output)
+        att_output = self.attention_inner_layer_norm(att_output)
         att_output = F.gelu(att_output)
-        att_output = self.attention_residual(att_output, input)
-        att_output = self.attention_outer_layer_norm(att_output)
+        att_output = self.attention_layer_norm_residual(att_output, input)
 
         # Feedforward phase.
         output = self.feedforward(att_output)

@@ -14,15 +14,15 @@ from utils.graph import Graph
 from utils.graph import Entity
 import zipfile
 
-from utils.spec_reader import spec
-SOKOBAN_MAX_STEPS = spec.val("SOKOBAN_MAX_STEPS")
-SOKOBAN_DIFFICULTY = spec.val("SOKOBAN_DIFFICULTY")
-SOKOBAN_SPLIT = spec.val("SOKOBAN_SPLIT")
-SOKOBAN_ROOM_OVERRIDE = spec.val("SOKOBAN_ROOM_OVERRIDE")
-SOKOBAN_BOXES_REQUIRED = spec.val("SOKOBAN_BOXES_REQUIRED")
-SOKOBAN_OBSERVATION_FORMAT = spec.val("SOKOBAN_OBSERVATION_FORMAT")
-SOKOBAN_REWARD_PER_STEP = spec.val("SOKOBAN_REWARD_PER_STEP")
-SOKOBAN_REWARD_SUCCESS = spec.val("SOKOBAN_REWARD_SUCCESS")
+# from utils.spec_reader import spec
+# SOKOBAN_MAX_STEPS = spec.val("SOKOBAN_MAX_STEPS")
+# SOKOBAN_DIFFICULTY = spec.val("SOKOBAN_DIFFICULTY")
+# SOKOBAN_SPLIT = spec.val("SOKOBAN_SPLIT")
+# SOKOBAN_ROOM_OVERRIDE = spec.val("SOKOBAN_ROOM_OVERRIDE")
+# SOKOBAN_BOXES_REQUIRED = spec.val("SOKOBAN_BOXES_REQUIRED")
+# SOKOBAN_OBSERVATION_FORMAT = spec.val("SOKOBAN_OBSERVATION_FORMAT")
+# SOKOBAN_REWARD_PER_STEP = spec.val("SOKOBAN_REWARD_PER_STEP")
+# SOKOBAN_REWARD_SUCCESS = spec.val("SOKOBAN_REWARD_SUCCESS")
 
 PIXELS_PER_TILE = 6  # Each tile is one pixel in the original Sokoban images, 8 pixels per cell, and 10x10 cells in a puzzle.
 TILES_PER_CELL = 8
@@ -49,25 +49,30 @@ ACTION_NAMES = ['Ponder', 'Up', 'Down', 'Left', 'Right']
 
 
 class Sokoban_Env(object):
-    def __init__(self, seed):
+    def __init__(self, seed, spec = None):
+        if spec is not None:
+            self.spec = spec
+        else:
+            print("No spec defined.")
+            exit(0)
         self.rand = random.Random(seed)
         self.num_boxes = 4
         self.boxes_on_target = 0
-        self.max_steps_per_episode = SOKOBAN_MAX_STEPS * SOKOBAN_BOXES_REQUIRED / self.num_boxes
+        self.max_steps_per_episode = self.spec["SOKOBAN_MAX_STEPS"] * self.spec["SOKOBAN_BOXES_REQUIRED"] / self.num_boxes
 
         # Penalties and Rewards
-        self.penalty_for_step = SOKOBAN_REWARD_PER_STEP
+        self.penalty_for_step = self.spec["SOKOBAN_REWARD_PER_STEP"]
         self.penalty_box_off_target = -1
         self.reward_box_on_target = 1
-        self.reward_finished = SOKOBAN_REWARD_SUCCESS * SOKOBAN_BOXES_REQUIRED / self.num_boxes
+        self.reward_finished = self.spec["SOKOBAN_REWARD_SUCCESS"] * self.spec["SOKOBAN_BOXES_REQUIRED"] / self.num_boxes
         self.reward_last = 0
 
         # Other Settings
         self.action_space = 5
-        if SOKOBAN_OBSERVATION_FORMAT == 'grid':
+        if self.spec["SOKOBAN_OBSERVATION_FORMAT"] == 'grid':
             self.observation_space = 400
             self.observation = np.zeros((10,10,4), dtype=np.uint8)
-        elif SOKOBAN_OBSERVATION_FORMAT == 'factored':
+        elif self.spec["SOKOBAN_OBSERVATION_FORMAT"] == 'factored':
             self.observation = Graph()
             self.num_factor_positions = 15
             self.factor_position_offset = (self.num_factor_positions - 1) // 2
@@ -102,7 +107,7 @@ class Sokoban_Env(object):
         self.total_episodes_won = 0.
 
     def reset(self, repeat=False, episode_id = None):
-        self.train_data_dir = os.path.join('data', 'boxoban-levels-master', SOKOBAN_DIFFICULTY, SOKOBAN_SPLIT)
+        self.train_data_dir = os.path.join('data', 'boxoban-levels-master', self.spec["SOKOBAN_DIFFICULTY"], self.spec["SOKOBAN_SPLIT"])
         self.select_room(repeat, episode_id)
         self.num_env_steps = 0
         self.reward_last = 0
@@ -146,12 +151,12 @@ class Sokoban_Env(object):
         return id + 4
 
     def assemble_current_observation(self, action, reward):
-        if SOKOBAN_OBSERVATION_FORMAT == 'grid':
+        if self.spec["SOKOBAN_OBSERVATION_FORMAT"] == 'grid':
             for row in range(10):
                 for col in range(10):
                     state = self.cell_state(row, col)
                     self.observation[row][col][:] = self.encodings[state]
-        elif SOKOBAN_OBSERVATION_FORMAT == 'factored':
+        elif self.spec["SOKOBAN_OBSERVATION_FORMAT"] == 'factored':
             self.assemble_observation_graph(action, reward)
         return self.observation
 
@@ -378,7 +383,7 @@ class Sokoban_Env(object):
             if self.total_steps == 0:
                 print("{} puzzle files found.".format(len(generated_files)))
             generated_files.sort()
-            if SOKOBAN_ROOM_OVERRIDE is None:
+            if self.spec["SOKOBAN_ROOM_OVERRIDE"] is None:
                 if episode_id is None:
                     map_file = self.rand.choice(generated_files)
                 else:
@@ -396,13 +401,13 @@ class Sokoban_Env(object):
                     if '#' == line[0]:
                         current_map.append(line.strip())
             maps.append(current_map)
-            if SOKOBAN_ROOM_OVERRIDE is None:
+            if self.spec["SOKOBAN_ROOM_OVERRIDE"] is None:
                 if episode_id is None:
                     self.selected_map = self.rand.choice(maps)
                 else:
                     self.selected_map = maps[episode_id % 1000]
             else:
-                self.selected_map = maps[SOKOBAN_ROOM_OVERRIDE]
+                self.selected_map = maps[self.spec["SOKOBAN_ROOM_OVERRIDE"]]
         self.room_fixed, self.room_state = self.generate_room(self.selected_map)
 
     def generate_room(self, select_map):
@@ -522,7 +527,7 @@ class Sokoban_Env(object):
             self.reward_last += self.penalty_box_off_target
 
         # game_won = self._check_if_enough_boxes_on_target()
-        self.game_won = (current_boxes_on_target == SOKOBAN_BOXES_REQUIRED)
+        self.game_won = (current_boxes_on_target == self.spec["SOKOBAN_BOXES_REQUIRED"])
         if self.game_won:
             self.reward_last += self.reward_finished
 

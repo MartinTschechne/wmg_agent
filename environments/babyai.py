@@ -3,6 +3,7 @@
 import gym
 import babyai  # This registers the 19 MiniGrid levels.
 import numpy as np
+import torch
 
 # from utils.spec_reader import spec
 # BABYAI_ENV_LEVEL = spec.val("BABYAI_ENV_LEVEL")
@@ -618,6 +619,7 @@ class BabyAI_Env(object):
         else:
             return self.online_test()
 
+    @torch.no_grad()
     def heldout_test(self):
         # Called by the reporting manager only.
 
@@ -672,6 +674,7 @@ class BabyAI_Env(object):
 
         return ret
 
+    @torch.no_grad()
     def online_test(self):
         # Called by the reporting manager only.
         # Combine the online sums from all threads.

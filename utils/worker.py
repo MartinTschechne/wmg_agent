@@ -9,6 +9,7 @@ import platform
 import torch
 import numpy as np
 import json
+import torch
 
 # from utils.spec_reader import spec
 # TYPE_OF_RUN = spec.val("TYPE_OF_RUN")
@@ -50,11 +51,17 @@ class Worker(object):
         self.start_time = time.time()
         self.heldout_testing = False
         self.environment = self.create_environment(self.spec["ENV_RANDOM_SEED"])
-        self.agent = A3cAgent(self.observation_space, self.action_space, self.spec)
-        if self.heldout_testing:
-            self.environment.test_environment = self.create_environment(self.spec["ENV_RANDOM_SEED"] + 1000000)
-            self.environment.test_agent = A3cAgent(self.observation_space, self.action_space, self.spec)
-            self.environment.test_agent.network = self.agent.network
+        try:
+            self.agent = A3cAgent(self.observation_space, self.action_space, self.spec)
+            if self.heldout_testing:
+                self.environment.test_environment = self.create_environment(self.spec["ENV_RANDOM_SEED"] + 1000000)
+                self.environment.test_agent = A3cAgent(self.observation_space, self.action_space, self.spec)
+                self.environment.test_agent.network = self.agent.network
+        except Exception as e:
+            print(e)
+            print("Model too large.\nOut of Memory Error.")
+            exit(0)
+
         self.step_num = 0
         self.total_reward = 0.
         self.num_steps = 0
@@ -87,7 +94,7 @@ class Worker(object):
             datetime.datetime.utcnow()).astimezone(pytz.timezone("PST8PDT")).strftime("%y-%m-%d_%H-%M-%S")
         code_dir = os.path.dirname(os.path.abspath(__file__))
         results_dir = os.path.join(os.path.dirname(code_dir), 'results')
-        self.output_filename = os.path.join(results_dir, '{}_{}_{}.txt'.format(self.spec["WMG_TRANSFORMER_TYPE"], self.spec["ID"], datetime_string))
+        self.output_filename = os.path.join(results_dir, '4e-1_{}_{}_{}.txt'.format(self.spec["WMG_TRANSFORMER_TYPE"], self.spec["ID"], datetime_string))
         file = open(self.output_filename, 'w')
         file.close()
 
@@ -121,17 +128,11 @@ class Worker(object):
         self.create_results_output_file()
         self.init_episode()
         output_to_file(self.output_filename, self.spec)
-        self.output("Hyperparameters:\n\
-                    Learning Rate: {}\n\
-                    Attention Head Size: {}\n\
-                    No. Attention Heads: {}".format(
-                        self.spec['LEARNING_RATE'],
-                        self.spec['WMG_ATTENTION_HEAD_SIZE'],
-                        self.spec['WMG_NUM_ATTENTION_HEADS']
-                    ))
+        self.output("{:11,d} trainable parameters".format(self.agent.count_parameters(self.agent.network)))
         self.take_n_steps(self.spec["TOTAL_STEPS"], None, True)
         self.output("{:8.6f} overall reward per step".format(self.total_reward / self.step_num))
 
+    @torch.no_grad()
     def test(self):
         self.create_results_output_file()
         self.init_episode()
@@ -139,6 +140,7 @@ class Worker(object):
         self.take_n_steps(self.spec["TOTAL_STEPS"], None, False)
         self.output("{:8.6f} overall reward per step".format(self.total_reward / self.step_num))
 
+    @torch.no_grad()
     def test_episodes(self):
         # Test the model on all episodes.
         # Success is determined by positive reward on the final step,
@@ -162,6 +164,7 @@ class Worker(object):
         self.output("Time: {:3.1f} min".format((time.time() - start_time)/60.))
         self.output("Success rate = {} / {} episodes = {:5.1f}%".format(num_wins, num_episodes_tested, 100.0 * num_wins / num_episodes_tested))
 
+    @torch.no_grad()
     def test_on_episode(self, episode_id):
         steps_taken = 0
         action = None

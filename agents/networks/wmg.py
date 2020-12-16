@@ -8,6 +8,7 @@ from agents.networks.shared.transformer import Transformer
 from agents.networks.shared.general import LinearLayer
 from agents.networks.shared.general import SeparateActorCriticLayers
 from agents.networks.shared.general import SharedActorCriticLayers
+from agents.networks.shared.general import LayerNorm
 from utils.graph import Graph
 
 # from utils.spec_reader import spec
@@ -67,6 +68,9 @@ class WMG_Network(nn.Module):
             self.state_vector_len = self.spec["WMG_MEMO_SIZE"]
         self.prepare_vector_embedding_layers(observation_space)
         self.prepare_age_encodings()
+        ###
+        # self.input_norm = LayerNorm(self.tfm_vec_size)
+        ###
         self.tfm = Transformer(self.spec["WMG_TRANSFORMER_TYPE"],
                                 self.spec["WMG_NUM_ATTENTION_HEADS"],
                                 self.spec["WMG_ATTENTION_HEAD_SIZE"],

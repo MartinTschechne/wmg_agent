@@ -3,6 +3,8 @@
 # Licensed under the MIT license.
 import os, sys, random, time
 import json
+import torch
+# torch.autograd.set_detect_anomaly(True)
 
 # Add the wmg_agent dir to the system path.
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))

@@ -3,8 +3,8 @@
 import numpy as np
 import random
 
-from utils.spec_reader import spec
-NUM_PATTERNS = spec.val("NUM_PATTERNS")
+# from utils.spec_reader import spec
+# NUM_PATTERNS = spec.val("NUM_PATTERNS")
 
 PATTERN_LENGTH = 7
 
@@ -22,15 +22,20 @@ class Link(object):
 
 
 class Graph(object):
-    def __init__(self, rand):
+    def __init__(self, rand, spec=None):
         self.rand = rand
+        if spec is not None:
+            self.spec = spec
+        else:
+            print("No spec defined.")
+            exit(0)
 
     def reset(self):
         # Links are represented by objects, but nodes are represented by indices.
         # Keep in mind that the nodes in this graph do not (necessarily) correspond to transformer nodes.
 
         # Allocate the pattern set.
-        self.patterns = [[0. for element in range(PATTERN_LENGTH)] for pattern in range(NUM_PATTERNS)]
+        self.patterns = [[0. for element in range(PATTERN_LENGTH)] for pattern in range(self.spec["NUM_PATTERNS"])]
 
         # Define the node patterns.
         for i, p in enumerate(self.patterns):
@@ -38,7 +43,7 @@ class Graph(object):
                 p[j] = self.rand.random() * 2. - 1.
 
         # Allocate the matrix for tracking path lengths. Zero indicates absence of a path.
-        self.path_len = [[0 for src in range(NUM_PATTERNS)] for tar in range(NUM_PATTERNS)]
+        self.path_len = [[0 for src in range(self.spec["NUM_PATTERNS"])] for tar in range(self.spec["NUM_PATTERNS"])]
 
         # Initialize the graph with one node, and no links.
         self.num_nodes = 1
@@ -72,8 +77,8 @@ class Graph(object):
     def mean_path_ratio(self):
         num_paths = 0
         num_node_pairs = 0
-        for s in range(NUM_PATTERNS):
-            for t in range(NUM_PATTERNS):
+        for s in range(self.spec["NUM_PATTERNS"]):
+            for t in range(self.spec["NUM_PATTERNS"]):
                 if s != t:
                     if self.path_len[s][t] > 0:
                         num_paths += 1
@@ -83,8 +88,8 @@ class Graph(object):
     def mean_path_len(self):
         path_len_sum = 0
         num_paths = 0
-        for s in range(NUM_PATTERNS):
-            for t in range(NUM_PATTERNS):
+        for s in range(self.spec["NUM_PATTERNS"]):
+            for t in range(self.spec["NUM_PATTERNS"]):
                 if s != t:
                     if self.path_len[s][t] > 0:
                         path_len_sum += self.path_len[s][t]
@@ -93,8 +98,8 @@ class Graph(object):
 
     def max_path_len(self):
         max_len = 0
-        for s in range(NUM_PATTERNS):
-            for t in range(NUM_PATTERNS):
+        for s in range(self.spec["NUM_PATTERNS"]):
+            for t in range(self.spec["NUM_PATTERNS"]):
                 if s != t:
                     if self.path_len[s][t] > max_len:
                         max_len = self.path_len[s][t]
@@ -102,7 +107,12 @@ class Graph(object):
 
 
 class Pathfinding_Env(object):
-    def __init__(self, seed=None):
+    def __init__(self, seed=None, spec=None):
+        if spec is not None:
+            self.spec = spec
+        else:
+            print("No spec defined.")
+            exit(0)
         if seed:
             self.seed = seed
         else:
@@ -118,9 +128,9 @@ class Pathfinding_Env(object):
         self.observation = np.zeros(self.observation_space)
 
         #self.test_graphs()
-        self.graph = Graph(self.rand)
+        self.graph = Graph(self.rand, self.spec)
         self.reset_online_test_sums()
-        self.cumulative_counts = [[0., 0.] for pattern in range(NUM_PATTERNS-1)]
+        self.cumulative_counts = [[0., 0.] for pattern in range(self.spec["NUM_PATTERNS"]-1)]
 
         self.total_reward = 0.
         self.total_steps = 0
@@ -134,7 +144,7 @@ class Pathfinding_Env(object):
             self.rand = random.Random(self.seed + i)
             self.graph = Graph(self.rand)
             self.graph.reset()
-            while self.graph.num_nodes < NUM_PATTERNS:
+            while self.graph.num_nodes < self.spec["NUM_PATTERNS"]:
                 self.graph.add_node()
 
             # print(self.graph.patterns)
@@ -169,7 +179,7 @@ class Pathfinding_Env(object):
             self.observation = self.graph.patterns[node_A] + self.graph.patterns[node_B] + [1.]
         else:
             # Add one node to the graph.
-            if self.graph.num_nodes < NUM_PATTERNS:
+            if self.graph.num_nodes < self.spec["NUM_PATTERNS"]:
                 self.graph.add_node()
 
             # Reveal the latest key-lock pattern pair to the agent.
@@ -206,7 +216,7 @@ class Pathfinding_Env(object):
             else:
                 self.cumulative_counts[quiz_id][0] += 1.
             self.max_reward += 1.
-            if self.graph.num_nodes == NUM_PATTERNS:
+            if self.graph.num_nodes == self.spec["NUM_PATTERNS"]:
                 self.done = True
         self.update_online_test_sums(self.reward, self.done)
         ret = self.assemble_current_observation(), self.reward, self.done

@@ -5,6 +5,8 @@ import numpy as np
 from scipy import stats
 import json
 import pandas as pd
+from tqdm import tqdm
+import seaborn as sns
 
 def extract_success_rate(lines):
     '''Read success rate from output file.'''
@@ -15,6 +17,19 @@ def extract_success_rate(lines):
         idx = l.index('Success')
         success_rate.append(float(l[idx-1]))
     return success_rate
+
+def extract_success_rate_and_time(lines):
+    '''Read success rate and time from output file.'''
+    success_rate = []
+    time = []
+    lines = [l for l in lines if 'Success rate' in l]
+    for l in lines:
+        l = l.split(' ')
+        idx = l.index('Success')
+        success_rate.append(float(l[idx-1]))
+        idx = l.index('sec')
+        time.append(float(l[idx-1]))
+    return time, success_rate
 
 def extract_time_steps(lines):
     ''''''
@@ -224,7 +239,6 @@ def plot_hp_IDs():
     plt.grid()
     plt.show()
 
-
 def correlation_size(path, model):
     with open('./specs/hyperparameter-combinations.json','r') as f:
         params = json.load(f)
@@ -340,6 +354,153 @@ def different_levels_single_layer(path):
         print(df)
         print(df.describe())
 
+def get_termination(error_lines):
+    if error_lines:
+        last_line = error_lines[-1]
+        if "RuntimeError" in last_line:
+            return "RuntimeError"
+        elif "oom-kill" in last_line:
+            return "Out of memory"
+        elif "ImportError" in last_line:
+            return "ImportError"
+        elif "DUE TO TIME LIMIT" in last_line:
+            return "Out of time"
+        else:
+            return "Success"
+    else:
+        return "Success"
+
+def get_hp_df():
+    df = []
+    paths = glob.glob('./specs/random_grid/train_wmg_on_factored_babyai_Original_*.json')
+    for json_path in paths:
+        with open(json_path,'r') as f:
+            spec = json.load(f)
+        df.append(spec)
+    df = pd.DataFrame(df)
+    return df
+
+def process_meta_files(path):
+    err_files = sorted(glob.glob(os.path.join(os.path.abspath(path),"*.err")))
+    out_files = sorted(glob.glob(os.path.join(os.path.abspath(path),"*.out")))
+    df_Original = {'ID':[],'Original-SR':[],'Original-time':[],'Original-steps':[],'Original-Comment':[]}
+    df_NAP = {'ID':[],'NAP-SR':[],'NAP-time':[],'NAP-steps':[],'NAP-Comment':[]}
+    for out_f, err_f in tqdm(zip(out_files, err_files), total=len(err_files)):
+        try:
+            assert out_f[-10:-4] == err_f[-10:-4]
+        except Exception as e:
+            print("Out and Error does not match")
+            print(out_f[-10:], err_f[-10:])
+            exit(0)
+        with open(err_f, 'r') as f:
+            err_lines = f.readlines()
+        termination = get_termination(err_lines)
+        if termination == "ImportError":
+            continue
+        with open(out_f, 'r') as f:
+            out_lines = f.readlines()
+        model = out_lines[4].split('/')[-1].split('_')[-2]
+        id = int(out_lines[4].split('/')[-1].split('_')[-1].split('.')[0])
+        out_file = glob.glob(os.path.join(os.path.abspath(path),f"{model}_{id}_*.txt"))
+        assert len(out_file) == 1
+        with open(out_file[0],'r') as f :
+            out_lines = f.readlines()
+        if model == 'Original':
+            df_Original['ID'].append(id)
+            if termination != 'Out of memory':
+                time, sr = extract_success_rate_and_time(out_lines)
+                df_Original['Original-SR'].append(max(sr[:4*50]))
+                df_Original['Original-steps'].append(int(min(len(sr)*250,5e4)))
+                df_Original['Original-time'].append(time[:4*50][-1])
+            else:
+                df_Original['Original-SR'].append(0.0)
+                df_Original['Original-steps'].append(0)
+                df_Original['Original-time'].append(0.0)
+            if len(sr) >= 250*50:
+                termination = "Training stopped."
+            df_Original['Original-Comment'].append(termination)
+        else:
+            df_NAP['ID'].append(id)
+            if termination != 'Out of memory':
+                time, sr = extract_success_rate_and_time(out_lines)
+                if sr:
+                    df_NAP['NAP-SR'].append(max(sr[:4*50]))
+                    df_NAP['NAP-steps'].append(int(min(len(sr)*250,5e4)))
+                    df_NAP['NAP-time'].append(time[:4*50][-1])
+                else:
+                    df_NAP['NAP-SR'].append(0.0)
+                    df_NAP['NAP-steps'].append(0)
+                    df_NAP['NAP-time'].append(0.0)
+            else:
+                df_NAP['NAP-SR'].append(0.0)
+                df_NAP['NAP-steps'].append(0)
+                df_NAP['NAP-time'].append(0.0)
+            if len(sr) >= 250*50:
+                termination = "Training stopped"
+            df_NAP['NAP-Comment'].append(termination)
+
+    df_Original = pd.DataFrame.from_dict(df_Original).sort_values(by=['ID'])
+    df_NAP = pd.DataFrame.from_dict(df_NAP).sort_values(by=['ID'])
+    df = pd.merge(df_Original, df_NAP, on='ID')
+    json_df = get_hp_df()
+    with pd.ExcelWriter("201126_random_grid_search.xlsx") as writer:
+        df.to_excel(writer,sheet_name="results")
+        json_df.to_excel(writer, sheet_name="hyperparameters")
+    return 0
+
+def make_df():
+    hp = pd.read_excel(open("201126_random_grid_search.xlsx",'rb'),sheet_name="hyperparameters")
+    res = pd.read_excel(open("201126_random_grid_search.xlsx",'rb'),sheet_name="results")
+
+    hp = hp.drop(["LOAD_MODEL_FROM","TYPE_OF_RUN","SAVE_MODELS_TO","ENV","ENV_RANDOM_SEED","AGENT_RANDOM_SEED",
+                "REPORTING_INTERVAL","TOTAL_STEPS","ANNEAL_LR","AGENT_NET","V2",
+                "BABYAI_ENV_LEVEL","USE_SUCCESS_RATE","SUCCESS_RATE_THRESHOLD","HELDOUT_TESTING",
+                "NUM_TEST_EPISODES","OBS_ENCODER","BINARY_REWARD","WEIGHT_DECAY","WMG_MAX_OBS",
+                "WMG_TRANSFORMER_TYPE","REZERO","ID","Unnamed: 0"], axis=1)
+    log_cols = ["AC_HIDDEN_LAYER_SIZE","ADAM_EPS","DISCOUNT_FACTOR",
+                "GRADIENT_CLIP","LEARNING_RATE","REWARD_SCALE","WMG_ATTENTION_HEAD_SIZE",
+                "WMG_MEMO_SIZE","WMG_HIDDEN_SIZE"]
+    hp = hp.apply(lambda x: np.log(x) if x.name in log_cols else x)
+    hp["ENTROPY_TERM_STRENGTH"] = hp["ENTROPY_TERM_STRENGTH"].apply(lambda x: np.log(x+1e-6))
+
+    res = res.drop(["ID","Original-time","Original-steps","Original-Comment",
+                    "NAP-time","NAP-steps","NAP-Comment","Unnamed: 0"],axis=1)
+
+    df = pd.concat([hp, res],axis=1)
+    df.to_csv("201126_random_grid_search_clean.csv")
+    return df
+
+def hp_correlation():
+    df = pd.read_csv('201126_random_grid_search_clean.csv',index_col=False)
+    df['MODEL_DIMENSION'] = np.log(df['WMG_NUM_ATTENTION_HEADS']) + df['WMG_ATTENTION_HEAD_SIZE']
+
+    best_nap = df[df['NAP-SR']>0.95]
+    best_nap = best_nap.drop(['Original-SR','Unnamed: 0'],axis=1)
+    best_org = df[df['Original-SR']>0.95]
+    best_org = best_org.drop(['NAP-SR','Unnamed: 0'],axis=1)
+
+    print(len(best_nap))
+    print(len(best_org))
+    corr_nap = best_nap.corr()
+    corr_org = best_org.corr()
+    # Generate a custom diverging colormap
+    cmap = sns.diverging_palette(240, 10, as_cmap=True)
+    mask_nap = (corr_nap > 0.3) | (corr_nap < -0.3)
+    mask_org = (corr_org > 0.3) | (corr_org < -0.3)
+    fig, ax = plt.subplots(1,2, figsize=(11,9))
+    # Draw the heatmap with the mask and correct aspect ratio
+    sns.heatmap(corr_nap, mask=~mask_nap, cmap=cmap, vmax=1., vmin=-1, center=0,
+                square=True, linewidths=.5, cbar_kws={"shrink": .25},ax=ax[0])
+    ax[0].set_title(r'NAP Correlation SR > 0.95 (n=38), |$\rho$| > 0.3')
+    sns.heatmap(corr_org, mask=~mask_org, cmap=cmap, vmax=1., vmin=-1, center=0,
+                square=True, linewidths=.5, cbar_kws={"shrink": .25},ax=ax[1])
+    ax[1].set_title(r'Original Correlation SR > 0.95 (n=39), |$\rho$| > 0.3')
+    ax[1].set_yticks([], [])
+    plt.tight_layout()
+    # plt.show()
+    # plt.savefig("201210_Correlation.png",dpi=100)
+
+
 def main():
     num_args = len(sys.argv) - 1
     if num_args != 1:
@@ -368,7 +529,9 @@ def main():
 
     # plot_hp_IDs()
 
-    different_levels_single_layer(folder_path)
+    # different_levels_single_layer(folder_path)
+
+    process_meta_files(folder_path)
 
 if __name__ == '__main__':
     main()
