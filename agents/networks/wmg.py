@@ -21,7 +21,6 @@ from utils.graph import Graph
 # WMG_MAX_OBS = spec.val("WMG_MAX_OBS")
 # WMG_MAX_MEMOS = spec.val("WMG_MAX_MEMOS")
 # WMG_TRANSFORMER_TYPE = spec.val("WMG_TRANSFORMER_TYPE")
-# REZERO = spec.val("REZERO")
 
 # The WMG code was refactored in minor ways before the Sokoban experiments.
 #   V1:  Used for Pathfinding and BabyAI.
@@ -68,15 +67,11 @@ class WMG_Network(nn.Module):
             self.state_vector_len = self.spec["WMG_MEMO_SIZE"]
         self.prepare_vector_embedding_layers(observation_space)
         self.prepare_age_encodings()
-        ###
-        # self.input_norm = LayerNorm(self.tfm_vec_size)
-        ###
         self.tfm = Transformer(self.spec["WMG_TRANSFORMER_TYPE"],
                                 self.spec["WMG_NUM_ATTENTION_HEADS"],
                                 self.spec["WMG_ATTENTION_HEAD_SIZE"],
                                 self.spec["WMG_NUM_LAYERS"],
-                                self.spec["WMG_HIDDEN_SIZE"],
-                                self.spec["REZERO"])
+                                self.spec["WMG_HIDDEN_SIZE"])
         if self.spec["V2"]:
             self.actor_critic_layers = SharedActorCriticLayers(self.tfm_vec_size, 2, self.spec["AC_HIDDEN_LAYER_SIZE"], action_space)
         else:

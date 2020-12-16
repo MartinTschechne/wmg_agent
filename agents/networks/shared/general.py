@@ -33,34 +33,24 @@ class LinearLayer(nn.Module):  # Adds weight initialization options on top of nn
 
 
 class ResidualLayer(nn.Module):
-    def __init__(self, input_size, output_size, rezero=False):
+    def __init__(self, input_size, output_size):
         super(ResidualLayer, self).__init__()
         self.linear_layer = LinearLayer(input_size, output_size)
-        self.rezero = rezero
-        if self.rezero:
-            self.alpha = nn.Parameter(torch.zeros(1))
 
     def forward(self, x, prev_input):
         output = self.linear_layer(x)
-        if self.rezero:
-            output *= self.alpha
         output += prev_input
         return output
 
 class LayerNormResidual(nn.Module):
-    def __init__(self, input_size, output_size, rezero=False):
+    def __init__(self, input_size, output_size):
         super(LayerNormResidual, self).__init__()
-        self.rezero = rezero
         self.linear_layer = LinearLayer(input_size, output_size)
         self.layer_norm = LayerNorm(output_size)
-        if self.rezero:
-            self.alpha = nn.Parameter(torch.zeros(1))
 
     def forward(self, x, prev_input):
         output = self.linear_layer(x)
         output = self.layer_norm(output)
-        if self.rezero:
-            output *= self.alpha
         output += prev_input
         return output
 
