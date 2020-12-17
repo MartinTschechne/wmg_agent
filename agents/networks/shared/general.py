@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-BIAS_INIT = 0.4
+BIAS_INIT = 0.0
 
 class LayerNorm(nn.Module):
     def __init__(self, size, variance_epsilon=1e-12):

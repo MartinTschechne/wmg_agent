@@ -37,6 +37,10 @@ def extract_time_steps(lines):
     steps = int(lines[-2].split('steps')[0].split('sec')[1].lstrip(' ').rstrip(' ').replace(',',''))
     return time, steps
 
+def sec_to_hms(sec):
+    sec = int(sec)
+    return f"{sec//3600} h {(sec%3600)//60} m {(sec%3600)%60} s"
+
 def plot_rezero():
     files = []
     files.append(os.path.abspath('./results/NAP_0_20-11-01_07-39-07.txt'))
@@ -269,7 +273,6 @@ def correlation_size(path, model):
     # plt.savefig(f"./plots/{model}-correlation2.png",dpi=100)
     plt.show()
 
-
 def few_head_results(path):
     with open('./specs/hyperparameter-combinations.json','r') as f:
         params = json.load(f)
@@ -380,70 +383,79 @@ def get_hp_df():
     df = pd.DataFrame(df)
     return df
 
-def process_meta_files(path):
-    err_files = sorted(glob.glob(os.path.join(os.path.abspath(path),"*.err")))
-    out_files = sorted(glob.glob(os.path.join(os.path.abspath(path),"*.out")))
+def update_df(model_name, df, id, out_lines, termination):
+    if id not in df['ID']:
+        df['ID'].append(id)
+        time, sr = extract_success_rate_and_time(out_lines)
+        if sr:
+            df[f'{model_name}-SR'].append(max(sr[:4*50]))
+            df[f'{model_name}-steps'].append(int(min(len(sr)*250,5e4)))
+            df[f'{model_name}-time'].append(time[:4*50][-1])
+        else:
+            df[f'{model_name}-SR'].append(0.0)
+            df[f'{model_name}-steps'].append(0)
+            df[f'{model_name}-time'].append(0.0)
+        df[f'{model_name}-Comment'].append(termination)
+
+def process_meta_files():
+
+    # read err and output files
+    paths = ["./results/201126_results/","./results/201217_results/"]
+    err_files, out_files = [], []
+    for p in paths:
+        err_files += glob.glob(os.path.join(os.path.abspath(p),"*.err"))
+        out_files += glob.glob(os.path.join(os.path.abspath(p),"*.out"))
+    err_files.sort()
+    out_files.sort()
+
     df_Original = {'ID':[],'Original-SR':[],'Original-time':[],'Original-steps':[],'Original-Comment':[]}
     df_NAP = {'ID':[],'NAP-SR':[],'NAP-time':[],'NAP-steps':[],'NAP-Comment':[]}
+    df_BIAS_NAP = {'ID':[],'BIAS-NAP-SR':[],'BIAS-NAP-time':[],'BIAS-NAP-steps':[],'BIAS-NAP-Comment':[]}
+
     for out_f, err_f in tqdm(zip(out_files, err_files), total=len(err_files)):
         try:
             assert out_f[-10:-4] == err_f[-10:-4]
         except Exception as e:
+            print(e)
             print("Out and Error does not match")
             print(out_f[-10:], err_f[-10:])
             exit(0)
+
         with open(err_f, 'r') as f:
             err_lines = f.readlines()
+
         termination = get_termination(err_lines)
         if termination == "ImportError":
+            # edge case, forgot to activate conda environment
             continue
+
         with open(out_f, 'r') as f:
             out_lines = f.readlines()
+
         model = out_lines[4].split('/')[-1].split('_')[-2]
         id = int(out_lines[4].split('/')[-1].split('_')[-1].split('.')[0])
-        out_file = glob.glob(os.path.join(os.path.abspath(path),f"{model}_{id}_*.txt"))
-        assert len(out_file) == 1
-        with open(out_file[0],'r') as f :
-            out_lines = f.readlines()
-        if model == 'Original':
-            df_Original['ID'].append(id)
-            if termination != 'Out of memory':
-                time, sr = extract_success_rate_and_time(out_lines)
-                df_Original['Original-SR'].append(max(sr[:4*50]))
-                df_Original['Original-steps'].append(int(min(len(sr)*250,5e4)))
-                df_Original['Original-time'].append(time[:4*50][-1])
-            else:
-                df_Original['Original-SR'].append(0.0)
-                df_Original['Original-steps'].append(0)
-                df_Original['Original-time'].append(0.0)
-            if len(sr) >= 250*50:
-                termination = "Training stopped."
-            df_Original['Original-Comment'].append(termination)
-        else:
-            df_NAP['ID'].append(id)
-            if termination != 'Out of memory':
-                time, sr = extract_success_rate_and_time(out_lines)
-                if sr:
-                    df_NAP['NAP-SR'].append(max(sr[:4*50]))
-                    df_NAP['NAP-steps'].append(int(min(len(sr)*250,5e4)))
-                    df_NAP['NAP-time'].append(time[:4*50][-1])
+        out_file = []
+        for p in paths:
+            out_file += glob.glob(os.path.join(os.path.abspath(p),f"*{model}_{id}_*.txt"))
+
+        for of in out_file:
+            with open(of,'r') as f :
+                out_lines = f.readlines()
+            if model == 'Original':
+                update_df(model, df_Original, id, out_lines, termination)
+            elif model == 'NAP':
+                if '4e-1' in of:
+                    update_df('BIAS-NAP', df_BIAS_NAP, id, out_lines, termination)
                 else:
-                    df_NAP['NAP-SR'].append(0.0)
-                    df_NAP['NAP-steps'].append(0)
-                    df_NAP['NAP-time'].append(0.0)
-            else:
-                df_NAP['NAP-SR'].append(0.0)
-                df_NAP['NAP-steps'].append(0)
-                df_NAP['NAP-time'].append(0.0)
-            if len(sr) >= 250*50:
-                termination = "Training stopped"
-            df_NAP['NAP-Comment'].append(termination)
+                    update_df(model, df_NAP, id, out_lines, termination)
 
     df_Original = pd.DataFrame.from_dict(df_Original).sort_values(by=['ID'])
     df_NAP = pd.DataFrame.from_dict(df_NAP).sort_values(by=['ID'])
+    df_BIAS_NAP = pd.DataFrame.from_dict(df_BIAS_NAP).sort_values(by=['ID'])
     df = pd.merge(df_Original, df_NAP, on='ID')
+    df = pd.merge(df, df_BIAS_NAP, on='ID')
     json_df = get_hp_df()
-    with pd.ExcelWriter("201126_random_grid_search.xlsx") as writer:
+    with pd.ExcelWriter("201217_random_grid_search.xlsx") as writer:
         df.to_excel(writer,sheet_name="results")
         json_df.to_excel(writer, sheet_name="hyperparameters")
     return 0

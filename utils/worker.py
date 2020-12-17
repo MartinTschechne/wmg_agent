@@ -94,7 +94,7 @@ class Worker(object):
             datetime.datetime.utcnow()).astimezone(pytz.timezone("PST8PDT")).strftime("%y-%m-%d_%H-%M-%S")
         code_dir = os.path.dirname(os.path.abspath(__file__))
         results_dir = os.path.join(os.path.dirname(code_dir), 'results')
-        self.output_filename = os.path.join(results_dir, '4e-1_{}_{}_{}.txt'.format(self.spec["WMG_TRANSFORMER_TYPE"], self.spec["ID"], datetime_string))
+        self.output_filename = os.path.join(results_dir, '{}_{}_{}.txt'.format(self.spec["WMG_TRANSFORMER_TYPE"], self.spec["ID"], datetime_string))
         file = open(self.output_filename, 'w')
         file.close()
 
